@@ -83,6 +83,17 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 #pl:fullscreen .vfs{display:none}
 @media(hover:none){#pl:fullscreen .fsbar{opacity:.9}}
 #bFull{--tc:#22c55e}
+#bScr{--tc:#22d3ee}
+#toast{position:fixed;left:50%;bottom:calc(var(--barh) + 16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(10px);display:flex;align-items:center;gap:12px;max-width:min(92vw,720px);padding:12px 16px;border-radius:22px;background:rgba(28,18,48,.9);border:1px solid var(--line);font-size:15px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:7;-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
+#toast.on{opacity:1;pointer-events:auto;transform:translateX(-50%)}
+#dp{display:none}
+.dsp .app,.dsp .bar,.dsp .vol,.dsp .rot,.dsp #amb,.dsp #toast{display:none!important}
+.dsp #dp{display:block;position:fixed;inset:0;background:#000;z-index:100}
+#dyt,#dyt iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#dgo{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(0,0,0,.72);color:#fff;font:30px "Righteous",system-ui,sans-serif;cursor:pointer;text-align:center}
+#dgo b{font-size:80px;font-weight:400;color:var(--acc)}
+#dgo small{font:17px "Outfit",system-ui,sans-serif;color:var(--sub)}
+#dgo.hide{display:none}
 @media(orientation:portrait) and (pointer:coarse){.rot{display:flex}}
 @media(max-height:520px){:root{--barh:66px}.bar i{width:36px;height:36px}.bar svg{width:20px;height:20px}.bar button{font-size:10.5px;gap:2px}h3{font-size:18px;margin:6px 0 4px}li{padding:8px 10px;font-size:14px}.sub{font-size:12px}.player{font-size:14px}.tile b{font-size:clamp(24px,9vh,40px)}.vol{bottom:calc(var(--barh) + 12px)}}
 @media(prefers-reduced-motion:reduce){.tile,#amb,.bar button,.bar i{transition:none}}
@@ -93,16 +104,19 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 <div class="app">
   <section class="left">
     <div id="pl" class="player"><div id="yt"></div><div id="plt"></div><button id="vfs" class="btn sm vfs">⛶ Video</button><div class="fsbar"><button class="btn" data-fs="bPause">Pause</button><button class="btn" data-fs="bNext">Next</button><button class="btn" data-fs="bVd">Vol -</button><button class="btn" data-fs="bVu">Vol +</button><button class="btn" data-fs="bMute">Mute</button><button class="btn" data-fs="exit">Exit</button></div></div>
-    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v10</span></div>
+    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v11</span></div>
     <div id="queue" class="queue"></div>
   </section>
   <section class="right"><div id="main"></div></section>
 </div>
 <div class="rot"><b>⟳</b><span>Rotate your device to landscape</span></div>
+<div id="toast"></div>
+<div id="dp"><div id="dyt"></div><div id="dgo"><b>&#9654;</b><span>Click once to start</span><small>Fullscreen and sound turn on</small></div></div>
 <div id="vol" class="vol"><span id="vt"></span><div class="vb"><div id="vf"></div></div></div>
 <div class="bar">
   <button id="bHome"><i>⌂</i>Home</button>
   <button id="bFull"><i>⛶</i><span id="fL">Full screen</span></button>
+  <button id="bScr"><i><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></i><span id="oL">Main screen</span></button>
   <button id="bVd"><i><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="M15.5 9.5a4 4 0 0 1 0 5"/></svg></i>Vol down</button>
   <button id="bVu"><i><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="M15.5 9.5a4 4 0 0 1 0 5"/><path d="M18.5 7a8 8 0 0 1 0 10"/></svg></i>Vol up</button>
   <button id="bMute"><i><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="m16 9 5 6M21 9l-5 6"/></svg></i><span id="mL">Mute</span></button>
@@ -112,6 +126,54 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
   <button id="bSet" title="YouTube API key" aria-label="YouTube API key"><i>⚙</i></button>
 </div>
 <script>
+// Second-screen window (projector / HDMI): same file, opened with ?display=1
+window.__D=/[?&]display=1(&|$)/.test(location.search);
+if(window.__D){(function(){
+  document.documentElement.classList.add("dsp");document.title="Karaoke - Screen 2";
+  const ch=window.BroadcastChannel?new BroadcastChannel("kq"):null;
+  const post=m=>{if(ch)ch.postMessage(m);};
+  const go=document.getElementById("dgo");
+  let ready=false,p=null,want=null,cur="",vol=70,muted=false;
+  const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  go.onclick=()=>{
+    const el=document.documentElement,rq=el.requestFullscreen||el.webkitRequestFullscreen;
+    if(rq)Promise.resolve(rq.call(el)).catch(()=>{});
+    go.classList.add("hide");
+    if(p&&p.playVideo)try{p.playVideo();}catch(e){}
+  };
+  document.addEventListener("fullscreenchange",()=>{if(!fsEl())go.classList.remove("hide");});
+  function applyVol(){if(p&&p.setVolume){p.setVolume(vol);if(muted)p.mute();else p.unMute();}}
+  function run(){
+    if(!ready||!want)return;
+    const w=want;want=null;cur=w.id;
+    if(!p){
+      const pv={autoplay:1,playsinline:1,rel:0,fs:0,controls:0,disablekb:1,start:Math.floor(w.at||0)};
+      if(/^https?:$/.test(location.protocol))pv.origin=location.origin;
+      p=new YT.Player("dyt",{width:"100%",height:"100%",videoId:w.id,playerVars:pv,events:{
+        onReady:applyVol,
+        onStateChange:e=>{if(e.data===0)post({t:"ended"});},
+        onError:e=>post({t:"err",c:e.data}),
+        onAutoplayBlocked:()=>go.classList.remove("hide")}});
+    }else p.loadVideoById({videoId:w.id,startSeconds:w.at||0});
+  }
+  window.onYouTubeIframeAPIReady=()=>{ready=true;run();};
+  const s=document.createElement("script");s.src="https://www.youtube.com/iframe_api";document.head.appendChild(s);
+  setInterval(()=>{if(p&&p.getCurrentTime&&cur)try{post({t:"time",id:cur,s:p.getCurrentTime()});}catch(e){}},1000);
+  if(ch)ch.onmessage=ev=>{
+    const m=ev.data||{};
+    if(m.t==="load"){want={id:m.id,at:m.at};run();}
+    else if(m.t==="pause"){if(p)try{p.pauseVideo();}catch(e){}}
+    else if(m.t==="play"){if(p)try{p.playVideo();}catch(e){}}
+    else if(m.t==="vol"){vol=m.v;muted=m.m;applyVol();}
+    else if(m.t==="stop"){cur="";if(p)try{p.stopVideo();}catch(e){}}
+    else if(m.t==="close")window.close();
+  };
+  addEventListener("pagehide",()=>post({t:"closed"}));
+  post({t:"hello"});
+})();}
+</script>
+<script>
+(function(){if(window.__D)return;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const wait=()=>new Promise(r=>setTimeout(r,250));
@@ -169,17 +231,29 @@ let yp=null,ypReady=false,curId="";
 window.onYouTubeIframeAPIReady=()=>{ypReady=true;syncPlayer();};
 function syncPlayer(){
   const v=S.now,real=v&&!String(v.id).startsWith("demo");
+  if(second()){
+    $("plt").classList.remove("hide");
+    let at=0;
+    if(yp&&curId&&v&&curId===v.id&&yp.getCurrentTime)try{at=yp.getCurrentTime()||0;}catch(e){}
+    if(yp&&yp.stopVideo&&curId)try{yp.stopVideo();}catch(e){}
+    curId="";
+    if(!real){if(dCur){post({t:"stop"});dCur="";}return;}
+    if(dCur!==v.id){dCur=v.id;post({t:"load",id:v.id,at:at});}
+    return;
+  }
+  const rs=(real&&resume.id===v.id)?resume.at:0;
   $("plt").classList.toggle("hide",!!real);
   if(!real){if(yp&&yp.stopVideo)yp.stopVideo();curId="";return;}
   if(!ypReady){if(!document.getElementById("ytapi")){const s=document.createElement("script");s.id="ytapi";s.src="https://www.youtube.com/iframe_api";document.head.appendChild(s);}return;}
+  resume={id:"",at:0};
   if(!yp){
     curId=v.id;
-    const pv={autoplay:1,playsinline:1,rel:0,fs:0};
+    const pv={autoplay:1,playsinline:1,rel:0,fs:0,start:Math.floor(rs)};
     if(/^https?:$/.test(location.protocol))pv.origin=location.origin;
-    yp=new YT.Player("yt",{width:"100%",height:"100%",videoId:v.id,playerVars:pv,events:{onReady:()=>applyVol(),onStateChange:e=>{if(e.data===0)playNext();},onError:e=>ytErr(e.data)}});
+    yp=new YT.Player("yt",{width:"100%",height:"100%",videoId:v.id,playerVars:pv,events:{onReady:()=>applyVol(),onStateChange:e=>{if(e.data===0){curId="";playNext();}},onError:e=>ytErr(e.data)}});
     return;
   }
-  if(curId!==v.id){curId=v.id;yp.loadVideoById(v.id);}
+  if(curId!==v.id){curId=v.id;yp.loadVideoById({videoId:v.id,startSeconds:rs});}
 }
 function ytErr(c){
   const skip=(c===101||c===150);
@@ -187,7 +261,10 @@ function ytErr(c){
   $("plt").textContent=skip?"This video can't be embedded. Skipping to the next one...":(c===153?"YouTube blocked playback (error 153). Open this app from its https link, not from a file on your computer.":"Video error "+c+".");
   if(skip)setTimeout(playNext,1500);
 }
-function applyVol(){if(yp&&yp.setVolume){yp.setVolume(S.vol);if(S.muted)yp.mute();else yp.unMute();}}
+function applyVol(){
+  if(yp&&yp.setVolume){yp.setVolume(S.vol);if(S.muted)yp.mute();else yp.unMute();}
+  if(D.ready)post({t:"vol",v:S.vol,m:S.muted});
+}
 
 // ---------- Paparan ----------
 function songs(){
@@ -201,7 +278,8 @@ function queueHtml(){
 }
 function render(){
   $("bSet").classList.toggle("on",!KEY);
-  $("plt").textContent=S.now?(S.paused?"\u23f8 ":"")+"Now playing: "+S.now.title+" ("+S.now.channel+")":"Nothing playing.";
+  $("oL").textContent=OUT==="second"?(D.ready?"2nd screen":"2nd: wait"):"Main screen";$("bScr").classList.toggle("on",OUT==="second");
+  $("plt").textContent=S.now?(S.paused?"\u23f8 ":"")+(second()?"[2nd screen] ":"")+"Now playing: "+S.now.title+" ("+S.now.channel+")":"Nothing playing.";
   $("next").textContent=S.q[0]?"Next: "+S.q[0].title:"Queue is empty";
   let h="";
   if(S.view==="home"){
@@ -299,7 +377,7 @@ $("bHome").onclick=home;
 $("bVd").onclick=()=>vol(-10);
 $("bVu").onclick=()=>vol(10);
 $("bMute").onclick=()=>{S.muted=!S.muted;showVol();};
-$("bPause").onclick=()=>{if(S.now){S.paused=!S.paused;if(yp&&yp.pauseVideo&&curId){if(S.paused)yp.pauseVideo();else yp.playVideo();}render();}};
+$("bPause").onclick=()=>{if(S.now){S.paused=!S.paused;if(second())post({t:S.paused?"pause":"play"});else if(yp&&yp.pauseVideo&&curId){if(S.paused)yp.pauseVideo();else yp.playVideo();}render();}};
 $("bNext").onclick=playNext;
 $("bBack").onclick=back;
 $("bSet").onclick=()=>{if(S.view!=="setup")go("setup");render();};
@@ -328,7 +406,78 @@ document.querySelector(".fsbar").addEventListener("click",e=>{
   const b=e.target.closest("[data-fs]");if(!b)return;
   if(b.dataset.fs==="exit")fsExit();else $(b.dataset.fs).click();
 });
+
+// ---------- Screen kedua: projector / HDMI ----------
+let OUT="main";try{OUT=localStorage.getItem("ko")==="second"?"second":"main";}catch(e){}
+const D={ready:false,time:0,id:""};let dw=null,dCur="",resume={id:"",at:0},SD=null,toastT;
+const ch=window.BroadcastChannel?new BroadcastChannel("kq"):null;
+const post=m=>{if(ch)ch.postMessage(m);};
+const second=()=>OUT==="second"&&D.ready;
+function toast(msg,label,fn,ms){
+  const t=$("toast");t.textContent="";
+  const s=document.createElement("span");s.textContent=msg;t.appendChild(s);
+  if(label){const b=document.createElement("button");b.className="btn sm";b.textContent=label;b.onclick=()=>{t.classList.remove("on");fn();};t.appendChild(b);}
+  t.classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("on"),ms||5000);
+}
+function setOut(v){OUT=v;try{localStorage.setItem("ko",v);}catch(e){}}
+function endSecond(){
+  if(!D.ready&&!dw)return;
+  if(S.now&&D.id===S.now.id)resume={id:S.now.id,at:D.time};
+  D.ready=false;dCur="";
+  try{if(dw&&!dw.closed)dw.close();}catch(e){}
+  dw=null;
+}
+async function loadSD(ask){
+  if(SD||!window.getScreenDetails)return SD;
+  try{
+    if(!ask){
+      let q;try{q=await navigator.permissions.query({name:"window-management"});}catch(e){q=await navigator.permissions.query({name:"window-placement"});}
+      if(q.state!=="granted")return null;
+    }
+    SD=await window.getScreenDetails();
+    SD.addEventListener("screenschange",onScreens);
+  }catch(e){}
+  return SD;
+}
+function openScreen(){
+  if(dw&&!dw.closed){try{dw.focus();}catch(e){}return;}
+  let L=screen.width+20,T=0,W=1280,H=720;
+  const sc=(SD&&SD.screens.find(s=>s!==SD.currentScreen&&!s.isInternal))||(SD&&SD.screens.find(s=>s!==SD.currentScreen));
+  if(sc){L=sc.availLeft;T=sc.availTop;W=sc.availWidth;H=sc.availHeight;}
+  dw=window.open(location.pathname+"?display=1","kq-display","popup=yes,left="+L+",top="+T+",width="+W+",height="+H);
+  if(!dw)toast("The browser blocked the 2nd screen window. Allow pop-ups for this site.","Try again",openScreen,12000);
+}
+$("bScr").onclick=async()=>{
+  if(OUT==="second"){endSecond();setOut("main");toast("Playing on this screen.");render();return;}
+  setOut("second");render();
+  if(screen.isExtended===false&&!(SD&&SD.screens.length>1)){
+    toast("No second screen found yet. Connect the projector with HDMI and choose Extend (Windows key + P). I will ask you when it is ready.",null,null,10000);
+    return;
+  }
+  if(!SD&&window.getScreenDetails)await loadSD(true);
+  openScreen();
+};
+if(ch)ch.onmessage=ev=>{
+  const m=ev.data||{};
+  if(m.t==="hello"){D.ready=true;dCur="";post({t:"vol",v:S.vol,m:S.muted});toast("Second screen connected. Click once on it to start fullscreen.");render();}
+  else if(m.t==="ended"){if(second()){dCur="";playNext();}}
+  else if(m.t==="time"){D.time=m.s;D.id=m.id;}
+  else if(m.t==="err"){if(second()){if(m.c===101||m.c===150){toast("This video can't be embedded. Skipping...");setTimeout(playNext,1200);}else toast("Second screen video error "+m.c);}}
+  else if(m.t==="closed"){if(D.ready){endSecond();toast("Second screen closed. Playing here.");render();}}
+};
+setInterval(()=>{if(dw&&dw.closed){const was=D.ready;endSecond();dw=null;if(was){toast("Second screen closed. Playing here.");render();}}},1500);
+let lastExt=screen.isExtended===true;
+function onScreens(){
+  const ext=screen.isExtended===true;
+  if(ext&&!lastExt&&OUT==="second"&&!D.ready)toast("Projector detected.","Send video there",openScreen,20000);
+  if(!ext&&lastExt&&D.ready){endSecond();toast("Second screen disconnected. Playing here.");}
+  lastExt=ext;render();
+}
+if(screen.addEventListener)screen.addEventListener("change",onScreens);
+loadSD(false);
+if(OUT==="second"&&screen.isExtended===true)toast("Tap to send the video to the second screen.","Send video",openScreen,20000);
 render();
+})();
 </script>
 </body>
 </html>
