@@ -84,6 +84,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 @media(hover:none){#pl:fullscreen .fsbar{opacity:.9}}
 #bFull{--tc:#22c55e}
 #bScr{--tc:#22d3ee}
+.steps{margin:6px 0 10px 20px;line-height:1.65;font-size:15px}.steps a{color:var(--acc)}
 #toast{position:fixed;left:50%;bottom:calc(var(--barh) + 16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(10px);display:flex;align-items:center;gap:12px;max-width:min(92vw,720px);padding:12px 16px;border-radius:22px;background:rgba(28,18,48,.9);border:1px solid var(--line);font-size:15px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:7;-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
 #toast.on{opacity:1;pointer-events:auto;transform:translateX(-50%)}
 #dp{display:none}
@@ -104,7 +105,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 <div class="app">
   <section class="left">
     <div id="pl" class="player"><div id="yt"></div><div id="plt"></div><button id="vfs" class="btn sm vfs">⛶ Video</button><div class="fsbar"><button class="btn" data-fs="bPause">Pause</button><button class="btn" data-fs="bNext">Next</button><button class="btn" data-fs="bVd">Vol -</button><button class="btn" data-fs="bVu">Vol +</button><button class="btn" data-fs="bMute">Mute</button><button class="btn" data-fs="exit">Exit</button></div></div>
-    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v11</span></div>
+    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v12</span></div>
     <div id="queue" class="queue"></div>
   </section>
   <section class="right"><div id="main"></div></section>
@@ -179,18 +180,43 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 const wait=()=>new Promise(r=>setTimeout(r,250));
 
 // ---------- YouTube API key (disimpan dalam pelayar ini sahaja) ----------
-let KEY="";try{KEY=localStorage.getItem("yk")||"";}catch(e){}
+// Optional shared key for everyone who opens this page (paste between the quotes).
+// Restrict it in Google Cloud to your site address. People can still add their own key with the gear button.
+const SHARED_KEY="";
+let OWN="";try{OWN=localStorage.getItem("yk")||"";}catch(e){}
+let KEY=OWN||SHARED_KEY;
 const dec=s=>{const t=document.createElement("textarea");t.innerHTML=s;return t.value;};
 function clean(t,a){
   let r=t.replace(/\(.*?\)|\[.*?\]/g," ").replace(/\b(official|lyrics?|lyric video|karaoke|instrumental|with lyrics|version|hd|hq|4k|sing king|backing track|no vocals?|video)\b/gi," ");
   if(a&&a.length>=3)r=r.replace(new RegExp("(?<![\\p{L}\\p{N}])"+a.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"(?![\\p{L}\\p{N}])","giu")," ");
   return r.replace(/[-\u2013\u2014|:\u2022"\u201c\u201d]+/g," ").replace(/\s+/g," ").replace(/^[\s.,]+|[\s.,]+$/g,"").trim();
 }
+// Search results are cached on this device for 24 hours so repeat searches cost no daily quota.
+const CK="yc",TTL=864e5,CMAX=40;
+function cacheGet(k){try{const c=JSON.parse(localStorage.getItem(CK)||"{}"),e=c[k];if(e&&Date.now()-e[0]<TTL)return e[1];}catch(x){}return null;}
+function cachePut(k,items){
+  try{
+    const c=JSON.parse(localStorage.getItem(CK)||"{}"),now=Date.now();
+    c[k]=[now,items];
+    Object.keys(c).filter(x=>now-c[x][0]>=TTL).forEach(x=>delete c[x]);
+    const ks=Object.keys(c).sort((a,b)=>c[a][0]-c[b][0]);
+    while(ks.length>CMAX)delete c[ks.shift()];
+    localStorage.setItem(CK,JSON.stringify(c));
+  }catch(x){}
+}
 async function yt(q,n){
+  const ck=n+"|"+q.toLowerCase().trim(),hit=cacheGet(ck);
+  if(hit)return hit;
   const r=await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults="+n+"&q="+encodeURIComponent(q)+"&key="+encodeURIComponent(KEY));
   const j=await r.json();
-  if(!r.ok)throw new Error((j.error&&j.error.message)||"YouTube error "+r.status);
-  return j.items||[];
+  if(!r.ok){
+    const reason=j.error&&j.error.errors&&j.error.errors[0]&&j.error.errors[0].reason;
+    if(reason==="quotaExceeded"||reason==="dailyLimitExceeded")throw new Error(OWN?"Your daily YouTube limit is used up. Try again tomorrow.":"Today's free searches are used up. Add your own free key with the gear button, or try again tomorrow.");
+    throw new Error((j.error&&j.error.message)||"YouTube error "+r.status);
+  }
+  const items=(j.items||[]).map(x=>({id:{videoId:x.id&&x.id.videoId},snippet:{title:x.snippet.title,channelTitle:x.snippet.channelTitle,thumbnails:{medium:{url:thumb(x)}}}}));
+  cachePut(ck,items);
+  return items;
 }
 const thumb=x=>{const t=(x.snippet&&x.snippet.thumbnails)||{};return (t.medium||t.high||t.default||{}).url||"";};
 const im=u=>u?'<img class="th" loading="lazy" alt="" src="'+esc(u)+'">':"";
@@ -297,7 +323,7 @@ function render(){
     h="<h3>History</h3>"+(S.msg?'<div class="sub">'+esc(S.msg)+"</div>":"")+(S.hist.length?"":'<div class="sub">Songs you play will show up here.</div>')+
     "<ul>"+S.hist.map((v,i)=>'<li>'+im(v.thumb)+'<span class="tx">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><button class="btn" data-a="hadd" data-i="'+i+'">Add</button></li>').join("")+"</ul>";
   }else if(S.view==="setup"){
-    h='<h3>YouTube API key</h3><div class="sub">'+(KEY?"A key is saved on this device. Searches use real YouTube results.":"No key yet. The app shows sample songs until you add one.")+'</div><div class="row"><input id="ki" type="password" placeholder="Paste your key (starts with AIza)" value="'+esc(KEY)+'"><button class="btn" data-a="savekey">Save</button></div><div class="row"><button class="btn" data-a="rmkey">Remove key</button></div>'+(S.msg?'<div class="sub">'+esc(S.msg)+"</div>":"")+'<div class="sub">The key stays in this browser only. Never post it online.</div>';
+    h='<h3>YouTube API key</h3><div class="sub">'+(OWN?"Your own key is saved on this device.":(SHARED_KEY?"You are using the shared key. It has a limited number of searches per day for everyone. Add your own free key to get your own daily limit.":"No key yet. The app shows sample songs until you add one."))+'</div><div class="row"><input id="ki" type="password" placeholder="Paste your key (starts with AIza)" value="'+esc(OWN)+'"><button class="btn" data-a="savekey">Save</button></div><div class="row"><button class="btn" data-a="rmkey">Remove key</button></div>'+(S.msg?'<div class="sub">'+esc(S.msg)+"</div>":"")+'<div class="sub" style="margin-top:10px">How to get a free key (about 5 minutes):</div><ol class="steps"><li>Open <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Google Cloud: new project</a>, sign in with Google and tap Create.</li><li>Open <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">YouTube Data API v3</a> and tap Enable.</li><li>Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a>, tap Create credentials, then API key.</li><li>Copy the key (it starts with AIza), paste it above and tap Save.</li></ol><div class="sub">The key stays in this browser only. Never post it online.</div>';
   }
   $("main").innerHTML=h;$("queue").innerHTML=queueHtml();syncPlayer();
 }
@@ -332,8 +358,8 @@ document.querySelector(".app").addEventListener("click",async e=>{
   }else if(a==="up"&&i>0){const [it]=S.q.splice(i,1);S.q.splice(i-1,0,it);render();}
   else if(a==="del"){S.q.splice(i,1);render();}
   else if(a==="hadd"){const v=S.hist[i];if(!S.now)setNow(v);else S.q.push(v);S.msg="Added: "+v.channel;render();}
-  else if(a==="savekey"){KEY=$("ki").value.trim();try{localStorage.setItem("yk",KEY);}catch(e){}S.msg=KEY?"Saved. Press Back, then try Find song.":"The key box is empty.";render();}
-  else if(a==="rmkey"){KEY="";try{localStorage.removeItem("yk");}catch(e){}S.msg="Key removed.";render();}
+  else if(a==="savekey"){OWN=$("ki").value.trim();KEY=OWN||SHARED_KEY;try{if(OWN)localStorage.setItem("yk",OWN);else localStorage.removeItem("yk");}catch(e){}S.msg=OWN?"Saved. Press Back, then try Find song.":"The key box is empty.";render();}
+  else if(a==="rmkey"){OWN="";KEY=SHARED_KEY;try{localStorage.removeItem("yk");}catch(e){}S.msg="Key removed.";render();}
 });
 $("main").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="ai")find();});
 
