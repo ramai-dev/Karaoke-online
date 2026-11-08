@@ -70,6 +70,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 #vt{font-weight:600;min-width:56px}
 .rot{display:none;position:fixed;inset:0;z-index:50;background:var(--bg);color:var(--ink);flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px;font:24px "Righteous",system-ui,sans-serif}
 .rot b{font-size:56px;font-weight:400;color:var(--acc)}
+.vfs{position:absolute;top:8px;right:8px;z-index:3}
+.fsbar{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:4;display:none;gap:8px;flex-wrap:wrap;justify-content:center;opacity:0;transition:opacity .25s}
+#pl:fullscreen{max-height:none;aspect-ratio:auto;border-radius:0;width:100%;height:100%}
+#pl:fullscreen .fsbar{display:flex}
+#pl:fullscreen:hover .fsbar{opacity:1}
+#pl:fullscreen .vfs{display:none}
+@media(hover:none){#pl:fullscreen .fsbar{opacity:.9}}
+#bFull{--tc:#22c55e}
 @media(orientation:portrait) and (pointer:coarse){.rot{display:flex}}
 @media(max-height:520px){:root{--barh:66px}.bar i{width:36px;height:36px}.bar svg{width:20px;height:20px}.bar button{font-size:10.5px;gap:2px}h3{font-size:18px;margin:6px 0 4px}li{padding:8px 10px;font-size:14px}.sub{font-size:12px}.player{font-size:14px}.tile b{font-size:clamp(24px,9vh,40px)}.vol{bottom:calc(var(--barh) + 12px)}}
 @media(prefers-reduced-motion:reduce){.tile,#amb,.bar button,.bar i{transition:none}}
@@ -79,7 +87,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 <div id="amb"></div>
 <div class="app">
   <section class="left">
-    <div id="pl" class="player"><div id="yt"></div><div id="plt"></div></div>
+    <div id="pl" class="player"><div id="yt"></div><div id="plt"></div><button id="vfs" class="btn sm vfs">⛶ Video</button><div class="fsbar"><button class="btn" data-fs="bPause">Pause</button><button class="btn" data-fs="bNext">Next</button><button class="btn" data-fs="bVd">Vol -</button><button class="btn" data-fs="bVu">Vol +</button><button class="btn" data-fs="bMute">Mute</button><button class="btn" data-fs="exit">Exit</button></div></div>
     <div class="nrow"><div id="next" class="next"></div><button id="bSet" class="btn sm">API key</button></div>
     <div id="queue" class="queue"></div>
   </section>
@@ -89,6 +97,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 <div id="vol" class="vol"><span id="vt"></span><div class="vb"><div id="vf"></div></div></div>
 <div class="bar">
   <button id="bHome"><i>⌂</i>Home</button>
+  <button id="bFull"><i>⛶</i><span id="fL">Full screen</span></button>
   <button id="bVd"><i><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="M15.5 9.5a4 4 0 0 1 0 5"/></svg></i>Vol down</button>
   <button id="bVu"><i><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="M15.5 9.5a4 4 0 0 1 0 5"/><path d="M18.5 7a8 8 0 0 1 0 10"/></svg></i>Vol up</button>
   <button id="bMute"><i><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="m16 9 5 6M21 9l-5 6"/></svg></i><span id="mL">Mute</span></button>
@@ -157,7 +166,7 @@ function syncPlayer(){
   if(!ypReady){if(!document.getElementById("ytapi")){const s=document.createElement("script");s.id="ytapi";s.src="https://www.youtube.com/iframe_api";document.head.appendChild(s);}return;}
   if(!yp){
     curId=v.id;
-    const pv={autoplay:1,playsinline:1,rel:0};
+    const pv={autoplay:1,playsinline:1,rel:0,fs:0};
     if(/^https?:$/.test(location.protocol))pv.origin=location.origin;
     yp=new YT.Player("yt",{width:"100%",height:"100%",videoId:v.id,playerVars:pv,events:{onReady:()=>applyVol(),onStateChange:e=>{if(e.data===0)playNext();},onError:e=>ytErr(e.data)}});
     return;
@@ -286,12 +295,36 @@ $("bNext").onclick=playNext;
 $("bBack").onclick=back;
 $("bSet").onclick=()=>{if(S.view!=="setup")go("setup");render();};
 
-// ---------- Fullscreen dan landscape (perlu satu ketukan) ----------
-document.addEventListener("pointerdown",()=>{
-  if(document.fullscreenElement||document.webkitFullscreenElement)return;
+// ---------- Fullscreen: seluruh app, atau kotak video sahaja ----------
+const fsOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
+const fsExit=()=>(document.exitFullscreen||document.webkitExitFullscreen).call(document);
+function enterDoc(){
   const el=document.documentElement,rq=el.requestFullscreen||el.webkitRequestFullscreen;
   if(!rq)return;
   Promise.resolve(rq.call(el)).then(()=>screen.orientation&&screen.orientation.lock?screen.orientation.lock("landscape"):0).catch(()=>{});
+}
+function toggleDoc(){if(fsOn())fsExit();else enterDoc();}
+function toggleVid(){
+  const p=$("pl");
+  if(fsOn()===p){fsExit();return;}
+  const rq=p.requestFullscreen||p.webkitRequestFullscreen;
+  if(rq)Promise.resolve(rq.call(p)).catch(()=>{});
+}
+function fsLabel(){$("fL").textContent=fsOn()===document.documentElement?"Exit full":"Full screen";}
+document.addEventListener("fullscreenchange",fsLabel);
+document.addEventListener("webkitfullscreenchange",fsLabel);
+$("bFull").onclick=toggleDoc;
+$("vfs").onclick=toggleVid;
+document.querySelector(".fsbar").addEventListener("click",e=>{
+  const b=e.target.closest("[data-fs]");if(!b)return;
+  if(b.dataset.fs==="exit")fsExit();else $(b.dataset.fs).click();
+});
+// Ketukan pertama sahaja masuk fullscreen. Selepas itu awak bebas keluar dan masuk guna butang.
+let auto=true;
+document.addEventListener("pointerdown",e=>{
+  if(!auto)return;auto=false;
+  if(e.target.closest("#bFull,#vfs,.fsbar")||fsOn())return;
+  enterDoc();
 });
 render();
 </script>
