@@ -27,8 +27,14 @@ button{font:inherit}
 #amb.on{opacity:.6}
 .app{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:14px;height:calc(100dvh - var(--barh) - env(safe-area-inset-bottom,0px));box-sizing:border-box;padding:calc(12px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-right,0px)) 8px calc(12px + env(safe-area-inset-left,0px))}
 .left{display:flex;flex-direction:column;gap:6px;min-height:0}
-.right{min-height:0;overflow:auto}
-#main{height:100%}
+.right{min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:10px}
+.langs{display:flex;gap:8px;flex-wrap:wrap;flex:none}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 16px;font:inherit;font-size:15px;cursor:pointer;transition:border-color .2s,background .2s;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.chip:hover{border-color:rgba(255,255,255,.8)}
+.chip.on{background:linear-gradient(180deg,#8b5cf6,#7c3aed);border-color:rgba(255,255,255,.5)}
+.chip.off:not(.on){opacity:.45}
+@media(max-height:520px){.chip{padding:5px 12px;font-size:13px}.right{gap:6px}}
+#main{flex:1;min-height:0;overflow:auto}
 .player{position:relative;overflow:hidden;flex:0 1 auto;aspect-ratio:16/9;max-height:58%;background:var(--pl);color:var(--plink);border-radius:16px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:17px}
 #yt,#yt iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 #plt{position:relative;z-index:1;padding:8px}
@@ -111,10 +117,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 <div class="app">
   <section class="left">
     <div id="pl" class="player"><div id="yt"></div><div id="plt"></div><button id="vfs" class="btn sm vfs">⛶ Video</button><div class="fsbar"><button id="fsm" class="btn fsm" aria-label="Menu">☰</button><div class="fsl"><button class="btn" data-fs="bPause">Pause</button><button class="btn" data-fs="bNext">Next</button><button class="btn" data-fs="bVd">Vol -</button><button class="btn" data-fs="bVu">Vol +</button><button class="btn" data-fs="bMute">Mute</button><button class="btn" data-fs="exit">Exit</button></div></div></div>
-    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v14</span></div>
+    <div class="nrow"><div id="next" class="next"></div><span id="ver" class="sub" style="margin-left:auto;font-size:12px">v15</span></div>
     <div id="queue" class="queue"></div>
   </section>
-  <section class="right"><div id="main"></div></section>
+  <section class="right"><div id="langs" class="langs"></div><div id="main"></div></section>
 </div>
 <div class="rot"><b>⟳</b><span>Rotate your device to landscape</span></div>
 <div id="toast"></div>
@@ -240,11 +246,98 @@ async function realSongs(q,byArtist){
 const TILES=[["Find song","\u2315"],["History","\u21ba"],["Top","\u2655"],["Favorites","\u2665"]];
 const COL=["#8b5cf6","#14b8a6","#6366f1","#f43f5e"];
 const ALL=[["Ed Sheeran","Shape of You"],["Ed Sheeran","Perfect"],["Taylor Swift","Love Story"],["Taylor Swift","Shake It Off"],["Mahalini","Sial"],["Ed Sheeran","Photograph"],["Taylor Swift","Blank Space"],["Ed Sheeran","Thinking Out Loud"]];
+// ---------- Built-in catalogs, one file per language (made with catalog-builder.html) ----------
+const LANGS=[["ms","Malay"],["en","English"],["ko","Korean"],["id","Indonesian"],["ot","Others"]];
+let LANG="ms";try{const l=localStorage.getItem("kl");if(LANGS.some(x=>x[0]===l))LANG=l;}catch(e){}
+const langName=l=>(LANGS.find(x=>x[0]===l)||[0,l])[1];
+const AV={},CATS={};let CAT=null;
+const hasCat=()=>Object.values(AV).some(Boolean)||!!CAT;
+const norm=x=>" "+String(x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+const web=/^https?:$/.test(location.protocol);
+const getJ=f=>fetch(f,{cache:"no-cache"}).then(r=>r.ok?r.json():null).catch(()=>null);
+const head=f=>fetch(f,{method:"HEAD",cache:"no-cache"}).then(r=>r.ok).catch(()=>false);
+function loadCat(l){
+  if(CATS[l]!==undefined)return Promise.resolve(CATS[l]);
+  if(!web)return Promise.resolve(CATS[l]=false);
+  return getJ("catalog-"+l+".json").then(j=>j||(l==="ms"?getJ("catalog.json"):null)).then(j=>{
+    CATS[l]=(j&&j.videos&&j.videos.length)?{ch:j.channels,v:j.videos.map(x=>({id:x[0],t:x[1],c:x[2],w:x[3]||0,n:norm(x[1])}))}:false;
+    if(CATS[l])CATS[l].art=buildArt(CATS[l].v);
+    AV[l]=!!CATS[l];return CATS[l];
+  });
+}
+let catReady=Promise.resolve();
+function useLang(l){
+  LANG=l;try{localStorage.setItem("kl",l);}catch(e){}
+  CAT=CATS[l]||null;
+  catReady=loadCat(l).then(c=>{if(LANG===l)CAT=c||null;render();});
+  return catReady;
+}
+if(web)LANGS.forEach(([l])=>head("catalog-"+l+".json").then(ok=>ok||(l==="ms"?head("catalog.json"):false)).then(ok=>{if(AV[l]===undefined)AV[l]=ok;render();}));
+const tk=q=>norm(q).trim().split(" ").filter(Boolean);
+const thumbOf=id=>"https://i.ytimg.com/vi/"+id+"/mqdefault.jpg";
+function catFind(q){const t=tk(q);return t.length?CAT.v.filter(v=>t.every(x=>v.n.includes(" "+x))):CAT.v;}
+// Split a title such as "Artist - Song (Karaoke)" into clean segments.
+const NOISE=/\b(official|lyrics?|lyric video|karaoke|karoke|instrumental|with lyrics|version|hd|hq|4k|sing king|backing track|no vocals?|tanpa vokal|minus one|video)\b/gi;
+function segsOf(t){
+  return t.replace(/\(.*?\)|\[.*?\]/g," ").replace(NOISE," ")
+    .split(/\s[-\u2013\u2014|:\u2022]\s|[|\u2022]/)
+    .map(x=>x.replace(/["\u201c\u201d]/g," ").replace(/\s+/g," ").replace(/^[\s.,\-]+|[\s.,\-]+$/g,"")).filter(Boolean);
+}
+// Artists are found from the data: a name that is paired with 6 or more different song names.
+const ART_MIN=6;
+function buildArt(vs){
+  const pt=new Map(),orig=new Map();
+  for(const v of vs){
+    const sg=segsOf(v.t);if(sg.length<2||sg.length>3)continue;
+    const ks=sg.map(norm);
+    sg.forEach((x,i)=>{const k=ks[i];let st=pt.get(k);if(!st)pt.set(k,st=new Set());ks.forEach((o,j)=>{if(j!==i)st.add(o);});if(!orig.has(k))orig.set(k,x);});
+  }
+  const art=new Map();
+  for(const [k,st] of pt)if(st.size>=ART_MIN&&k.trim().length>=3)art.set(k,orig.get(k));
+  return art;
+}
+function parse(v){
+  const art=CAT.art;let sg=segsOf(v.t),artist="";
+  if(sg.length>1){
+    const rest=sg.filter(x=>{const k=norm(x);if(art.has(k)){artist=art.get(k);return false;}return true;});
+    if(rest.length)sg=rest;
+  }else if(sg.length===1){
+    const w=sg[0].split(" ");
+    out:for(let n=Math.min(4,w.length-1);n>=1;n--)for(let i=0;i+n<=w.length;i++){
+      const k=norm(w.slice(i,i+n).join(" "));
+      if(art.has(k)){artist=art.get(k);sg=[w.slice(0,i).concat(w.slice(i+n)).join(" ").trim()||sg[0]];break out;}
+    }
+  }
+  return {name:sg.join(" ").replace(/\s+/g," ").trim(),artist:artist};
+}
+function catSongs(q,byArtist){
+  const g=new Map();
+  for(const v of catFind(q)){
+    const p=parse(v);if(!p.name)continue;
+    const k=norm(p.name)+"|"+norm(p.artist),e=g.get(k);
+    if(!e)g.set(k,{n:p.name,a:p.artist,s:v.w+1000,top:v.w,id:v.id});
+    else{e.s+=v.w+1000;if(v.w>e.top){e.top=v.w;e.id=v.id;}}
+  }
+  return [...g.values()].sort((a,b)=>b.s-a.s).slice(0,25).map(e=>[e.a||(byArtist?q:""),e.n,thumbOf(e.id)]);
+}
+function catVideos(a,s){
+  const key=norm(s);
+  let m=catFind((a+" "+s).trim());
+  const exact=m.filter(v=>norm(parse(v).name)===key);
+  if(exact.length)m=exact;
+  m=m.slice().sort((x,y)=>y.w-x.w);
+  const seen=new Set(),first=[],rest=[];
+  for(const v of m){(seen.has(v.c)?rest:first).push(v);seen.add(v.c);}
+  return first.concat(rest).slice(0,10).map(v=>({id:v.id,title:v.t,channel:CAT.ch[v.c].title,thumb:thumbOf(v.id)}));
+}
 const DataSource={
-  async songsByArtist(a){if(KEY)return realSongs(a,true);await wait();a=a.toLowerCase();return ALL.filter(x=>x[0].toLowerCase()===a||x[1].toLowerCase().includes(a));},
-  async tileSongs(i){if(KEY)return realSongs("top hits",false);await wait();return ALL.slice(i%4,i%4+4);},
+  async songsByArtist(a){await catReady;if(CAT){const r=catSongs(a,true);if(r.length||!KEY)return r;}if(KEY)return realSongs(a,true);if(hasCat())return [];await wait();a=a.toLowerCase();return ALL.filter(x=>x[0].toLowerCase()===a||x[1].toLowerCase().includes(a));},
+  async tileSongs(i){await catReady;if(CAT)return catSongs("",false);if(KEY)return realSongs("top hits",false);if(hasCat())return [];await wait();return ALL.slice(i%4,i%4+4);},
   async karaokeVideos(a,s){
+    await catReady;
+    if(CAT){const r=catVideos(a,s);if(r.length||!KEY)return r;}
     if(KEY){const it=await yt((a+" "+s).trim()+" karaoke",10);return it.filter(x=>x.id&&x.id.videoId).map(x=>({id:x.id.videoId,title:dec(x.snippet.title),channel:dec(x.snippet.channelTitle),thumb:thumb(x)}));}
+    if(hasCat())return [];
     await wait();
     return ["Sing King","KaraFun","Karaoke Hits","Zoom Karaoke"].map((c,k)=>({id:"demo"+k+s.replace(/\s/g,""),title:a+" - "+s+" (Karaoke Version)",channel:c}));
   }
@@ -310,7 +403,9 @@ function queueHtml(){
   "<ul>"+S.q.map((v,i)=>'<li><span class="n">'+(i+1)+'</span>'+im(v.thumb)+'<span class="t">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><span>'+(i?'<button class="btn" data-a="up" data-i="'+i+'">Up</button> ':'')+'<button class="btn" data-a="del" data-i="'+i+'">Remove</button></span></li>').join("")+"</ul>";
 }
 function render(){
-  $("bSet").classList.toggle("on",!KEY);
+  $("langs").innerHTML=LANGS.map(x=>'<button class="chip'+(x[0]===LANG?" on":"")+(AV[x[0]]===false?" off":"")+'" data-lg="'+x[0]+'">'+x[1]+"</button>").join("");
+  $("ver").textContent="v16"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");
+  $("bSet").classList.toggle("on",!KEY&&!hasCat());
   $("oL").textContent=OUT==="second"?(D.ready?"2nd screen":"2nd: wait"):"Main screen";$("bScr").classList.toggle("on",OUT==="second");
   $("plt").textContent=S.now?(S.paused?"\u23f8 ":"")+(second()?"[2nd screen] ":"")+"Now playing: "+S.now.title+" ("+S.now.channel+")":"Nothing playing.";
   $("next").textContent=S.q[0]?"Next: "+S.q[0].title:"Queue is empty";
@@ -330,7 +425,7 @@ function render(){
     h="<h3>History</h3>"+(S.msg?'<div class="sub">'+esc(S.msg)+"</div>":"")+(S.hist.length?"":'<div class="sub">Songs you play will show up here.</div>')+
     "<ul>"+S.hist.map((v,i)=>'<li>'+im(v.thumb)+'<span class="tx">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><button class="btn" data-a="hadd" data-i="'+i+'">Add</button></li>').join("")+"</ul>";
   }else if(S.view==="setup"){
-    h='<h3>YouTube API key</h3><div class="sub">'+(OWN?"Your own key is saved on this device.":(SHARED_KEY?"You are using the shared key. It has a limited number of searches per day for everyone. Add your own free key to get your own daily limit.":"No key yet. The app shows sample songs until you add one."))+'</div><div class="row"><input id="ki" type="password" placeholder="Paste your key (starts with AIza)" value="'+esc(OWN)+'"><button class="btn" data-a="savekey">Save</button></div><div class="row"><button class="btn" data-a="rmkey">Remove key</button></div>'+(S.msg?'<div class="sub">'+esc(S.msg)+"</div>":"")+'<div class="sub" style="margin-top:10px">How to get a free key (about 5 minutes):</div><ol class="steps"><li>Open <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Google Cloud: new project</a>, sign in with Google and tap Create.</li><li>Open <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">YouTube Data API v3</a> and tap Enable.</li><li>Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a>, tap Create credentials, then API key.</li><li>Copy the key (it starts with AIza), paste it above and tap Save.</li></ol><div class="sub">The key stays in this browser only. Never post it online.</div>';
+    h='<h3>YouTube API key</h3><div class="sub">'+(OWN?"Your own key is saved on this device.":(hasCat()&&!SHARED_KEY?"Songs come from the built-in catalog, so a key is optional. It is only used when the catalog has no match.":SHARED_KEY?"You are using the shared key. It has a limited number of searches per day for everyone. Add your own free key to get your own daily limit.":"No key yet. The app shows sample songs until you add one."))+'</div><div class="row"><input id="ki" type="password" placeholder="Paste your key (starts with AIza)" value="'+esc(OWN)+'"><button class="btn" data-a="savekey">Save</button></div><div class="row"><button class="btn" data-a="rmkey">Remove key</button></div>'+(S.msg?'<div class="sub">'+esc(S.msg)+"</div>":"")+'<div class="sub" style="margin-top:10px">How to get a free key (about 5 minutes):</div><ol class="steps"><li>Open <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Google Cloud: new project</a>, sign in with Google and tap Create.</li><li>Open <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">YouTube Data API v3</a> and tap Enable.</li><li>Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a>, tap Create credentials, then API key.</li><li>Copy the key (it starts with AIza), paste it above and tap Save.</li></ol><div class="sub">The key stays in this browser only. Never post it online.</div>';
   }
   $("main").innerHTML=h;$("queue").innerHTML=queueHtml();syncPlayer();
 }
@@ -340,7 +435,7 @@ async function find(){
   if(!S.artist)return;
   S.msg="Searching...";S.list=[];render();
   S.list=await safe(()=>DataSource.songsByArtist(S.artist),[]);
-  S.msg=S.msg.startsWith("Error")?S.msg:(S.list.length?"":(KEY?"No songs found.":"No songs found. Sample data: Ed Sheeran, Taylor Swift, Mahalini."));
+  S.msg=S.msg.startsWith("Error")?S.msg:(S.list.length?"":(KEY||CAT?"No songs found.":(hasCat()?"No "+langName(LANG)+" catalog yet. Pick another language.":"No songs found. Sample data: Ed Sheeran, Taylor Swift, Mahalini.")));
   render();
 }
 
@@ -380,6 +475,7 @@ function glow(t){
   amb.style.setProperty("--gy",(r.top+r.height/2)/innerHeight*100+"%");
   amb.classList.add("on");
 }
+$("langs").addEventListener("click",e=>{const b=e.target.closest("[data-lg]");if(!b||b.dataset.lg===LANG)return;useLang(b.dataset.lg);home();});
 $("main").addEventListener("mouseover",e=>glow(e.target.closest(".tile")));
 $("main").addEventListener("mouseleave",()=>glow(null));
 $("main").addEventListener("focusin",e=>glow(e.target.closest(".tile")));
@@ -514,6 +610,7 @@ function onScreens(){
 if(screen.addEventListener)screen.addEventListener("change",onScreens);
 loadSD(false);
 if(OUT==="second"&&screen.isExtended===true)toast("Tap to send the video to the second screen.","Send video",openScreen,20000);
+useLang(LANG);
 render();
 })();
 </script>
