@@ -115,7 +115,7 @@ let KEY="";try{KEY=localStorage.getItem("yk")||"";}catch(e){}
 const dec=s=>{const t=document.createElement("textarea");t.innerHTML=s;return t.value;};
 function clean(t,a){
   let r=t.replace(/\(.*?\)|\[.*?\]/g," ").replace(/\b(official|lyrics?|lyric video|karaoke|instrumental|with lyrics|version|hd|hq|4k|sing king|backing track|no vocals?|video)\b/gi," ");
-  if(a)r=r.replace(new RegExp(a.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"gi")," ");
+  if(a&&a.length>=3)r=r.replace(new RegExp("(?<![\\p{L}\\p{N}])"+a.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"(?![\\p{L}\\p{N}])","giu")," ");
   return r.replace(/[-\u2013\u2014|:\u2022"\u201c\u201d]+/g," ").replace(/\s+/g," ").trim();
 }
 async function yt(q,n){
@@ -318,13 +318,6 @@ $("vfs").onclick=toggleVid;
 document.querySelector(".fsbar").addEventListener("click",e=>{
   const b=e.target.closest("[data-fs]");if(!b)return;
   if(b.dataset.fs==="exit")fsExit();else $(b.dataset.fs).click();
-});
-// Ketukan pertama sahaja masuk fullscreen. Selepas itu awak bebas keluar dan masuk guna butang.
-let auto=true;
-document.addEventListener("pointerdown",e=>{
-  if(!auto)return;auto=false;
-  if(e.target.closest("#bFull,#vfs,.fsbar")||fsOn())return;
-  enterDoc();
 });
 render();
 </script>
