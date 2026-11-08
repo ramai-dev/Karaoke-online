@@ -170,13 +170,13 @@ $("go").onclick=async()=>{
     const batches=chunk([...vids.keys()],50);let done=0;
     const work=async b=>{
       try{
-        const j=await api("videos",{part:"status,contentDetails,statistics",id:b.join(",")});
+        const j=await api("videos",{part:"status,contentDetails,statistics,snippet",id:b.join(",")});
         const ok=new Set();
         for(const x of j.items||[]){
           const v=vids.get(x.id);if(!v)continue;
           const d=dur(x.contentDetails&&x.contentDetails.duration);
           if(x.status&&x.status.embeddable===false||x.status&&x.status.privacyStatus!=="public"||d<60||d>900){continue;}
-          v.w=+((x.statistics&&x.statistics.viewCount)||0);v.ok=true;ok.add(x.id);
+          v.w=+((x.statistics&&x.statistics.viewCount)||0);v.a=((x.snippet&&(x.snippet.defaultAudioLanguage||x.snippet.defaultLanguage))||"").toLowerCase().slice(0,2);v.ok=true;ok.add(x.id);
         }
       }catch(e){if(isQuota(e)){stopped=true;log("Daily limit reached while checking.");}else throw e;}
       done++;prog(0.5+done/batches.length*0.5);
@@ -191,7 +191,7 @@ $("go").onclick=async()=>{
       const used=[...new Set(mine.map(v=>v.c))].sort((a,b)=>a-b),map=new Map(used.map((c,k)=>[c,k]));
       OUT[lg]={v:1,generated:new Date().toISOString().slice(0,10),lang:lg,
         channels:used.map(c=>({id:pick[c].id,title:pick[c].title})),
-        videos:mine.sort((a,b)=>b.w-a.w).map(v=>[v.id,v.t,map.get(v.c),v.w])};
+        videos:mine.sort((a,b)=>b.w-a.w).map(v=>v.a?[v.id,v.t,map.get(v.c),v.w,v.a]:[v.id,v.t,map.get(v.c),v.w])};
     }
     prog(1);log("Done. "+good.length+" videos kept ("+drop+" removed: not embeddable, too short/long or private). YouTube calls used: "+calls+".");
     const names=Object.fromEntries(LANGS);
