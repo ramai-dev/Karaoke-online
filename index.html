@@ -265,7 +265,7 @@ function loadCat(l){
     AV[l]=!!CATS[l];return CATS[l];
   });
 }
-const verLabel=()=>{$("ver").textContent="v18"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
+const verLabel=()=>{$("ver").textContent="v19"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
 // After a catalog loads, only redraw screens that have no text box, so nothing the user typed is wiped.
 const soft=()=>{if(S.view==="home"||S.view==="langs")render();else verLabel();};
 let catReady=Promise.resolve();
@@ -280,7 +280,7 @@ const tk=q=>norm(q).trim().split(" ").filter(Boolean);
 const thumbOf=id=>"https://i.ytimg.com/vi/"+id+"/mqdefault.jpg";
 function catFind(q){const t=tk(q);return t.length?CAT.v.filter(v=>t.every(x=>v.n.includes(" "+x))):CAT.v;}
 // Split a title such as "Artist - Song (Karaoke)" into clean segments.
-const NOISE=/\b(official|lyrics?|lyric video|karaoke|karoke|instrumental|with lyrics|version|hd|hq|4k|sing king|backing track|no vocals?|tanpa vokal|minus one|video)\b/gi;
+const NOISE=/\b(official|lyrics?|lirik|lyric video|karaoke|karoke|instrumental|with lyrics|version|hd|hq|4k|sing king|backing track|no vocals?|tanpa vocals?|tanpa vokal|minus one|minus|nada pria|nada wanita|mv|m\/v|video)\b/gi;
 function segsOf(t){
   return t.replace(/\(.*?\)|\[.*?\]/g," ").replace(NOISE," ")
     .split(/\s[-\u2013\u2014|:\u2022]\s|[|\u2022]/)
@@ -326,9 +326,8 @@ function catSongs(q,byArtist){
 function catVideos(a,s){
   const key=norm(s);
   let m=catFind((a+" "+s).trim());
-  const exact=m.filter(v=>norm(parse(v).name)===key);
-  if(exact.length)m=exact;
-  m=m.slice().sort((x,y)=>y.w-x.w);
+  const byW=(x,y)=>y.w-x.w,ex=m.filter(v=>norm(parse(v).name)===key).sort(byW),exs=new Set(ex);
+  m=ex.concat(m.filter(v=>!exs.has(v)).sort(byW));
   const seen=new Set(),first=[],rest=[];
   for(const v of m){(seen.has(v.c)?rest:first).push(v);seen.add(v.c);}
   return first.concat(rest).slice(0,10).map(v=>({id:v.id,title:v.t,channel:CAT.ch[v.c].title,thumb:thumbOf(v.id)}));
