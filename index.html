@@ -50,6 +50,10 @@ input::placeholder{color:var(--sub)}
 ul{list-style:none;padding:0;margin:0}
 li{background:var(--card);border:1px solid var(--line);margin:4px 0;padding:14px;border-radius:16px;font-size:17px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 li.c{cursor:pointer}
+.th{width:132px;aspect-ratio:16/9;object-fit:cover;flex:none;border-radius:10px;background:rgba(255,255,255,.08);box-shadow:0 2px 10px rgba(0,0,0,.4)}
+.q .th,.queue .th{width:96px}
+.tx{flex:1;min-width:0;overflow-wrap:anywhere}
+@media (max-height:520px),(max-width:700px){.th{width:96px}.queue .th{width:76px}}
 .n{width:30px;height:30px;flex:none;border-radius:50%;background:rgba(167,139,250,.25);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px}
 .t{flex:1;min-width:0;overflow-wrap:anywhere}
 .sub{color:var(--sub);font-size:14px}
@@ -116,7 +120,7 @@ const dec=s=>{const t=document.createElement("textarea");t.innerHTML=s;return t.
 function clean(t,a){
   let r=t.replace(/\(.*?\)|\[.*?\]/g," ").replace(/\b(official|lyrics?|lyric video|karaoke|instrumental|with lyrics|version|hd|hq|4k|sing king|backing track|no vocals?|video)\b/gi," ");
   if(a&&a.length>=3)r=r.replace(new RegExp("(?<![\\p{L}\\p{N}])"+a.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"(?![\\p{L}\\p{N}])","giu")," ");
-  return r.replace(/[-\u2013\u2014|:\u2022"\u201c\u201d]+/g," ").replace(/\s+/g," ").trim();
+  return r.replace(/[-\u2013\u2014|:\u2022"\u201c\u201d]+/g," ").replace(/\s+/g," ").replace(/^[\s.,]+|[\s.,]+$/g,"").trim();
 }
 async function yt(q,n){
   const r=await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults="+n+"&q="+encodeURIComponent(q)+"&key="+encodeURIComponent(KEY));
@@ -124,11 +128,13 @@ async function yt(q,n){
   if(!r.ok)throw new Error((j.error&&j.error.message)||"YouTube error "+r.status);
   return j.items||[];
 }
+const thumb=x=>{const t=(x.snippet&&x.snippet.thumbnails)||{};return (t.medium||t.high||t.default||{}).url||"";};
+const im=u=>u?'<img class="th" loading="lazy" alt="" src="'+esc(u)+'">':"";
 async function realSongs(q,byArtist){
   const seen=new Set(),out=[];
   for(const x of await yt(q+" karaoke",25)){
     const n=clean(dec(x.snippet.title),byArtist?q:"");
-    if(n&&!seen.has(n.toLowerCase())){seen.add(n.toLowerCase());out.push([byArtist?q:"",n]);}
+    if(n&&!seen.has(n.toLowerCase())){seen.add(n.toLowerCase());out.push([byArtist?q:"",n,thumb(x)]);}
   }
   return out;
 }
@@ -141,7 +147,7 @@ const DataSource={
   async songsByArtist(a){if(KEY)return realSongs(a,true);await wait();a=a.toLowerCase();return ALL.filter(x=>x[0].toLowerCase()===a||x[1].toLowerCase().includes(a));},
   async tileSongs(i){if(KEY)return realSongs("top hits",false);await wait();return ALL.slice(i%4,i%4+4);},
   async karaokeVideos(a,s){
-    if(KEY){const it=await yt((a+" "+s).trim()+" karaoke",10);return it.filter(x=>x.id&&x.id.videoId).map(x=>({id:x.id.videoId,title:dec(x.snippet.title),channel:dec(x.snippet.channelTitle)}));}
+    if(KEY){const it=await yt((a+" "+s).trim()+" karaoke",10);return it.filter(x=>x.id&&x.id.videoId).map(x=>({id:x.id.videoId,title:dec(x.snippet.title),channel:dec(x.snippet.channelTitle),thumb:thumb(x)}));}
     await wait();
     return ["Sing King","KaraFun","Karaoke Hits","Zoom Karaoke"].map((c,k)=>({id:"demo"+k+s.replace(/\s/g,""),title:a+" - "+s+" (Karaoke Version)",channel:c}));
   }
@@ -184,12 +190,12 @@ function applyVol(){if(yp&&yp.setVolume){yp.setVolume(S.vol);if(S.muted)yp.mute(
 // ---------- Paparan ----------
 function songs(){
   return (S.msg?'<div class="'+(/^(No |Error)/.test(S.msg)?"err":"sub")+'">'+esc(S.msg)+"</div>":"")+
-  "<ul>"+S.list.map((x,i)=>'<li class="c" data-a="song" data-i="'+i+'"><span>'+esc(x[1])+'<div class="sub">'+esc(x[0])+'</div></span><span class="sub">\u203a</span></li>').join("")+"</ul>";
+  "<ul>"+S.list.map((x,i)=>'<li class="c" data-a="song" data-i="'+i+'">'+im(x[2])+'<span class="tx">'+esc(x[1])+'<div class="sub">'+esc(x[0])+'</div></span><span class="sub">\u203a</span></li>').join("")+"</ul>";
 }
 function queueHtml(){
   return '<div class="qh"><h3>Queue</h3><span class="sub">'+S.q.length+(S.q.length===1?" song":" songs")+'</span></div>'+
   (S.q.length?"":'<div class="sub">Nothing queued yet. Find a song and tap Add.</div>')+
-  "<ul>"+S.q.map((v,i)=>'<li><span class="n">'+(i+1)+'</span><span class="t">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><span>'+(i?'<button class="btn" data-a="up" data-i="'+i+'">Up</button> ':'')+'<button class="btn" data-a="del" data-i="'+i+'">Remove</button></span></li>').join("")+"</ul>";
+  "<ul>"+S.q.map((v,i)=>'<li><span class="n">'+(i+1)+'</span>'+im(v.thumb)+'<span class="t">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><span>'+(i?'<button class="btn" data-a="up" data-i="'+i+'">Up</button> ':'')+'<button class="btn" data-a="del" data-i="'+i+'">Remove</button></span></li>').join("")+"</ul>";
 }
 function render(){
   $("plt").textContent=S.now?(S.paused?"\u23f8 ":"")+"Now playing: "+S.now.title+" ("+S.now.channel+")":"Nothing playing.";
@@ -205,10 +211,10 @@ function render(){
     const f=S.fav.some(x=>key(x)===key(S.cur));
     h="<h3>"+esc(S.cur[1])+'</h3><div class="row"><span class="sub" style="flex:1;align-self:center">'+esc(S.cur[0])+'</span><button class="btn" data-a="fav">'+(f?"\u2665 Favorite":"\u2661 Favorite")+"</button></div>"+
     (S.msg?'<div class="'+(/^Error/.test(S.msg)?"err":"sub")+'">'+esc(S.msg)+"</div>":"")+
-    "<ul>"+S.vids.map((v,i)=>'<li><span>'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><button class="btn" data-a="add" data-i="'+i+'">Add</button></li>').join("")+"</ul>";
+    "<ul>"+S.vids.map((v,i)=>'<li>'+im(v.thumb)+'<span class="tx">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><button class="btn" data-a="add" data-i="'+i+'">Add</button></li>').join("")+"</ul>";
   }else if(S.view==="hist"){
     h="<h3>History</h3>"+(S.msg?'<div class="sub">'+esc(S.msg)+"</div>":"")+(S.hist.length?"":'<div class="sub">Songs you play will show up here.</div>')+
-    "<ul>"+S.hist.map((v,i)=>'<li><span>'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><button class="btn" data-a="hadd" data-i="'+i+'">Add</button></li>').join("")+"</ul>";
+    "<ul>"+S.hist.map((v,i)=>'<li>'+im(v.thumb)+'<span class="tx">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><button class="btn" data-a="hadd" data-i="'+i+'">Add</button></li>').join("")+"</ul>";
   }else if(S.view==="setup"){
     h='<h3>YouTube API key</h3><div class="sub">'+(KEY?"A key is saved on this device. Searches use real YouTube results.":"No key yet. The app shows sample songs until you add one.")+'</div><div class="row"><input id="ki" type="password" placeholder="Paste your key (starts with AIza)" value="'+esc(KEY)+'"><button class="btn" data-a="savekey">Save</button></div><div class="row"><button class="btn" data-a="rmkey">Remove key</button></div>'+(S.msg?'<div class="sub">'+esc(S.msg)+"</div>":"")+'<div class="sub">The key stays in this browser only. Never post it online.</div>';
   }
