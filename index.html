@@ -28,12 +28,11 @@ button{font:inherit}
 .app{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:14px;height:calc(100dvh - var(--barh) - env(safe-area-inset-bottom,0px));box-sizing:border-box;padding:calc(12px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-right,0px)) 8px calc(12px + env(safe-area-inset-left,0px))}
 .left{display:flex;flex-direction:column;gap:6px;min-height:0}
 .right{min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:10px}
-.langs{display:flex;gap:8px;flex-wrap:wrap;flex:none}
-.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 16px;font:inherit;font-size:15px;cursor:pointer;transition:border-color .2s,background .2s;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
-.chip:hover{border-color:rgba(255,255,255,.8)}
-.chip.on{background:linear-gradient(180deg,#8b5cf6,#7c3aed);border-color:rgba(255,255,255,.5)}
-.chip.off:not(.on){opacity:.45}
-@media(max-height:520px){.chip{padding:5px 12px;font-size:13px}.right{gap:6px}}
+.tiles.lg6{grid-template-columns:repeat(6,1fr)}
+.lg6 .tile:nth-child(-n+3){grid-column:span 2}
+.lg6 .tile:nth-child(n+4){grid-column:span 3}
+.tile.off{opacity:.5}
+.tile .sub{font-size:13px;margin-top:4px}
 #main{flex:1;min-height:0;overflow:auto}
 .player{position:relative;overflow:hidden;flex:0 1 auto;aspect-ratio:16/9;max-height:58%;background:var(--pl);color:var(--plink);border-radius:16px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:17px}
 #yt,#yt iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
@@ -120,7 +119,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
     <div class="nrow"><div id="next" class="next"></div><span id="ver" class="sub" style="margin-left:auto;font-size:12px">v15</span></div>
     <div id="queue" class="queue"></div>
   </section>
-  <section class="right"><div id="langs" class="langs"></div><div id="main"></div></section>
+  <section class="right"><div id="main"></div></section>
 </div>
 <div class="rot"><b>⟳</b><span>Rotate your device to landscape</span></div>
 <div id="toast"></div>
@@ -243,6 +242,7 @@ async function realSongs(q,byArtist){
 }
 
 // ---------- Data: contoh bila tiada key, YouTube sebenar bila ada key ----------
+const LC=["#22c55e","#3b82f6","#ec4899","#f59e0b","#a78bfa"],LB=["MY","EN","KR","ID","\u2026"];
 const TILES=[["Find song","\u2315"],["History","\u21ba"],["Top","\u2655"],["Favorites","\u2665"]];
 const COL=["#8b5cf6","#14b8a6","#6366f1","#f43f5e"];
 const ALL=[["Ed Sheeran","Shape of You"],["Ed Sheeran","Perfect"],["Taylor Swift","Love Story"],["Taylor Swift","Shake It Off"],["Mahalini","Sial"],["Ed Sheeran","Photograph"],["Taylor Swift","Blank Space"],["Ed Sheeran","Thinking Out Loud"]];
@@ -403,8 +403,7 @@ function queueHtml(){
   "<ul>"+S.q.map((v,i)=>'<li><span class="n">'+(i+1)+'</span>'+im(v.thumb)+'<span class="t">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><span>'+(i?'<button class="btn" data-a="up" data-i="'+i+'">Up</button> ':'')+'<button class="btn" data-a="del" data-i="'+i+'">Remove</button></span></li>').join("")+"</ul>";
 }
 function render(){
-  $("langs").innerHTML=LANGS.map(x=>'<button class="chip'+(x[0]===LANG?" on":"")+(AV[x[0]]===false?" off":"")+'" data-lg="'+x[0]+'">'+x[1]+"</button>").join("");
-  $("ver").textContent="v16"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");
+  $("ver").textContent="v17"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");
   $("bSet").classList.toggle("on",!KEY&&!hasCat());
   $("oL").textContent=OUT==="second"?(D.ready?"2nd screen":"2nd: wait"):"Main screen";$("bScr").classList.toggle("on",OUT==="second");
   $("plt").textContent=S.now?(S.paused?"\u23f8 ":"")+(second()?"[2nd screen] ":"")+"Now playing: "+S.now.title+" ("+S.now.channel+")":"Nothing playing.";
@@ -412,8 +411,10 @@ function render(){
   let h="";
   if(S.view==="home"){
     h='<div class="tiles">'+TILES.map((t,i)=>'<button class="tile" style="--tc:'+COL[i]+'" data-a="tile" data-i="'+i+'"><b>'+t[1]+"</b>"+t[0]+"</button>").join("")+"</div>";
+  }else if(S.view==="langs"){
+    h='<div class="tiles lg6">'+LANGS.map((x,i)=>{const off=AV[x[0]]===false&&!KEY;return '<button class="tile'+(off?" off":"")+'" style="--tc:'+LC[i]+'" data-a="lang" data-lg="'+x[0]+'"><b>'+LB[i]+"</b>"+x[1]+(off?'<span class="sub">No catalog yet</span>':"")+"</button>";}).join("")+"</div>";
   }else if(S.view==="artist"){
-    h='<h3>Find song</h3><div class="row"><input id="ai" type="text" placeholder="Singer or song, e.g. Ed Sheeran" value="'+esc(S.artist)+'"><button class="btn" data-a="find">Search</button></div>'+songs();
+    h='<h3>Find song \u00b7 '+langName(LANG)+'</h3><div class="row"><input id="ai" type="text" placeholder="Singer or song, e.g. Ed Sheeran" value="'+esc(S.artist)+'"><button class="btn" data-a="find">Search</button></div>'+songs();
   }else if(S.view==="list"){
     h="<h3>"+esc(S.title)+"</h3>"+(S.list.length||S.msg?songs():'<div class="sub">No songs here yet.</div>');
   }else if(S.view==="videos"){
@@ -443,10 +444,14 @@ document.querySelector(".app").addEventListener("click",async e=>{
   const b=e.target.closest("[data-a]");if(!b)return;
   const a=b.dataset.a,i=+b.dataset.i;
   if(a==="tile"){
-    if(i===0){S.list=[];S.artist="";go("artist");render();}
+    if(i===0){S.next="find";go("langs");render();}
     else if(i===1){go("hist");render();}
     else if(i===3){S.title="Favorites";S.list=S.fav.slice();go("list");render();}
-    else{S.title=TILES[i][0];S.list=[];go("list");S.msg="Searching...";render();S.list=await safe(()=>DataSource.tileSongs(i),[]);if(!S.msg.startsWith("Error"))S.msg="";render();}
+    else{S.next="top";go("langs");render();}
+  }else if(a==="lang"){
+    useLang(b.dataset.lg);
+    if(S.next==="top"){S.title="Top \u00b7 "+langName(LANG);S.list=[];go("list");S.msg="Searching...";render();S.list=await safe(()=>DataSource.tileSongs(2),[]);if(!S.msg.startsWith("Error"))S.msg="";render();}
+    else{S.list=[];S.artist="";go("artist");render();}
   }else if(a==="find")find();
   else if(a==="song"){
     S.cur=S.list[i];S.vids=[];go("videos");S.msg="Finding karaoke videos...";render();
@@ -475,7 +480,6 @@ function glow(t){
   amb.style.setProperty("--gy",(r.top+r.height/2)/innerHeight*100+"%");
   amb.classList.add("on");
 }
-$("langs").addEventListener("click",e=>{const b=e.target.closest("[data-lg]");if(!b||b.dataset.lg===LANG)return;useLang(b.dataset.lg);home();});
 $("main").addEventListener("mouseover",e=>glow(e.target.closest(".tile")));
 $("main").addEventListener("mouseleave",()=>glow(null));
 $("main").addEventListener("focusin",e=>glow(e.target.closest(".tile")));
