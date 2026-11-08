@@ -74,8 +74,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 #vt{font-weight:600;min-width:56px}
 .rot{display:none;position:fixed;inset:0;z-index:50;background:var(--bg);color:var(--ink);flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px;font:24px "Righteous",system-ui,sans-serif}
 .rot b{font-size:56px;font-weight:400;color:var(--acc)}
-.vfs{position:absolute;top:8px;right:8px;z-index:3}
-.fsbar{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:4;display:none;gap:8px;flex-wrap:wrap;justify-content:center;opacity:0;transition:opacity .25s}
+.vfs{position:absolute;top:50%;right:10px;transform:translateY(-50%);z-index:3}
+.fsbar{position:absolute;top:50%;right:14px;transform:translateY(-50%);z-index:4;display:none;flex-direction:column;gap:10px;align-items:stretch;opacity:0;transition:opacity .25s}
+.fsbar .btn{min-width:92px;text-align:center}
 #pl:fullscreen{max-height:none;aspect-ratio:auto;border-radius:0;width:100%;height:100%}
 #pl:fullscreen .fsbar{display:flex}
 #pl:fullscreen:hover .fsbar{opacity:1}
@@ -92,7 +93,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 <div class="app">
   <section class="left">
     <div id="pl" class="player"><div id="yt"></div><div id="plt"></div><button id="vfs" class="btn sm vfs">⛶ Video</button><div class="fsbar"><button class="btn" data-fs="bPause">Pause</button><button class="btn" data-fs="bNext">Next</button><button class="btn" data-fs="bVd">Vol -</button><button class="btn" data-fs="bVu">Vol +</button><button class="btn" data-fs="bMute">Mute</button><button class="btn" data-fs="exit">Exit</button></div></div>
-    <div class="nrow"><div id="next" class="next"></div><button id="bSet" class="btn sm">API key</button></div>
+    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v7</span><button id="bSet" class="btn sm">API key</button></div>
     <div id="queue" class="queue"></div>
   </section>
   <section class="right"><div id="main"></div></section>
