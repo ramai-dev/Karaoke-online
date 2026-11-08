@@ -93,7 +93,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 <div class="app">
   <section class="left">
     <div id="pl" class="player"><div id="yt"></div><div id="plt"></div><button id="vfs" class="btn sm vfs">⛶ Video</button><div class="fsbar"><button class="btn" data-fs="bPause">Pause</button><button class="btn" data-fs="bNext">Next</button><button class="btn" data-fs="bVd">Vol -</button><button class="btn" data-fs="bVu">Vol +</button><button class="btn" data-fs="bMute">Mute</button><button class="btn" data-fs="exit">Exit</button></div></div>
-    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v7</span><button id="bSet" class="btn sm">API key</button></div>
+    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v8</span><button id="bSet" class="btn sm">API key</button></div>
     <div id="queue" class="queue"></div>
   </section>
   <section class="right"><div id="main"></div></section>
@@ -199,6 +199,7 @@ function queueHtml(){
   "<ul>"+S.q.map((v,i)=>'<li><span class="n">'+(i+1)+'</span>'+im(v.thumb)+'<span class="t">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><span>'+(i?'<button class="btn" data-a="up" data-i="'+i+'">Up</button> ':'')+'<button class="btn" data-a="del" data-i="'+i+'">Remove</button></span></li>').join("")+"</ul>";
 }
 function render(){
+  const bs=$("bSet");bs.textContent=KEY?"⚙":"API key";bs.title="YouTube API key";bs.style.opacity=KEY?".45":"1";
   $("plt").textContent=S.now?(S.paused?"\u23f8 ":"")+"Now playing: "+S.now.title+" ("+S.now.channel+")":"Nothing playing.";
   $("next").textContent=S.q[0]?"Next: "+S.q[0].title:"Queue is empty";
   let h="";
