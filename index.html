@@ -66,7 +66,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .bar button:hover i,.bar button:focus-visible i,.bar button.on i{border-color:rgba(255,255,255,.9);background:color-mix(in srgb,var(--tc) 45%,rgba(255,255,255,.1))}
 .bar button:hover i,.bar button:focus-visible i{transform:scale(1.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 0 0 2px rgba(255,255,255,.85),0 10px 24px rgba(0,0,0,.5),0 0 22px color-mix(in srgb,var(--tc) 70%,transparent)}
 .bar button:active{transform:translateY(-1px) scale(.97)}
-#bHome{--tc:#8b5cf6}#bVd{--tc:#0ea5e9}#bVu{--tc:#ec4899}#bMute{--tc:#f43f5e}#bPause{--tc:#14b8a6}#bNext{--tc:#d946ef}#bBack{--tc:#3b82f6}
+#bHome{--tc:#8b5cf6}#bVd{--tc:#0ea5e9}#bVu{--tc:#ec4899}#bMute{--tc:#f43f5e}#bPause{--tc:#14b8a6}#bNext{--tc:#d946ef}#bBack{--tc:#3b82f6}#bSet{--tc:#a78bfa;flex:none;width:34px;padding:0;margin-left:2px;opacity:.5}#bSet i{width:28px;height:28px;font-size:16px}#bSet:hover,#bSet:focus-visible,#bSet.on{opacity:1}
 .vol{position:fixed;left:50%;bottom:calc(var(--barh) + 16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(10px);display:flex;align-items:center;gap:12px;padding:12px 18px;border-radius:22px;background:var(--card);border:1px solid var(--line);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:5}
 .vol.on{opacity:1;transform:translateX(-50%)}
 .vb{width:140px;height:8px;border-radius:4px;background:rgba(255,255,255,.15);overflow:hidden}
@@ -93,7 +93,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 <div class="app">
   <section class="left">
     <div id="pl" class="player"><div id="yt"></div><div id="plt"></div><button id="vfs" class="btn sm vfs">⛶ Video</button><div class="fsbar"><button class="btn" data-fs="bPause">Pause</button><button class="btn" data-fs="bNext">Next</button><button class="btn" data-fs="bVd">Vol -</button><button class="btn" data-fs="bVu">Vol +</button><button class="btn" data-fs="bMute">Mute</button><button class="btn" data-fs="exit">Exit</button></div></div>
-    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v8</span><button id="bSet" class="btn sm">API key</button></div>
+    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v10</span></div>
     <div id="queue" class="queue"></div>
   </section>
   <section class="right"><div id="main"></div></section>
@@ -109,6 +109,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
   <button id="bPause"><i>⏯</i>Pause</button>
   <button id="bNext"><i>⏭</i>Next</button>
   <button id="bBack"><i>↩</i>Back</button>
+  <button id="bSet" title="YouTube API key" aria-label="YouTube API key"><i>⚙</i></button>
 </div>
 <script>
 const $=id=>document.getElementById(id);
@@ -199,7 +200,7 @@ function queueHtml(){
   "<ul>"+S.q.map((v,i)=>'<li><span class="n">'+(i+1)+'</span>'+im(v.thumb)+'<span class="t">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><span>'+(i?'<button class="btn" data-a="up" data-i="'+i+'">Up</button> ':'')+'<button class="btn" data-a="del" data-i="'+i+'">Remove</button></span></li>').join("")+"</ul>";
 }
 function render(){
-  const bs=$("bSet");bs.textContent=KEY?"⚙":"API key";bs.title="YouTube API key";bs.style.opacity=KEY?".45":"1";
+  $("bSet").classList.toggle("on",!KEY);
   $("plt").textContent=S.now?(S.paused?"\u23f8 ":"")+"Now playing: "+S.now.title+" ("+S.now.channel+")":"Nothing playing.";
   $("next").textContent=S.q[0]?"Next: "+S.q[0].title:"Queue is empty";
   let h="";
