@@ -7,6 +7,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Karaoke Queue</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1a0b2e">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=Righteous&display=swap">
@@ -105,7 +109,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 <div class="app">
   <section class="left">
     <div id="pl" class="player"><div id="yt"></div><div id="plt"></div><button id="vfs" class="btn sm vfs">⛶ Video</button><div class="fsbar"><button class="btn" data-fs="bPause">Pause</button><button class="btn" data-fs="bNext">Next</button><button class="btn" data-fs="bVd">Vol -</button><button class="btn" data-fs="bVu">Vol +</button><button class="btn" data-fs="bMute">Mute</button><button class="btn" data-fs="exit">Exit</button></div></div>
-    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v12</span></div>
+    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v13</span></div>
     <div id="queue" class="queue"></div>
   </section>
   <section class="right"><div id="main"></div></section>
@@ -129,6 +133,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 <script>
 // Second-screen window (projector / HDMI): same file, opened with ?display=1
 window.__D=/[?&]display=1(&|$)/.test(location.search);
+if("serviceWorker" in navigator&&/^https?:$/.test(location.protocol))navigator.serviceWorker.register("sw.js").catch(function(){});
 if(window.__D){(function(){
   document.documentElement.classList.add("dsp");document.title="Karaoke - Screen 2";
   const ch=window.BroadcastChannel?new BroadcastChannel("kq"):null;
