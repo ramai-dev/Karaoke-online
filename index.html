@@ -265,14 +265,17 @@ function loadCat(l){
     AV[l]=!!CATS[l];return CATS[l];
   });
 }
+const verLabel=()=>{$("ver").textContent="v18"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
+// After a catalog loads, only redraw screens that have no text box, so nothing the user typed is wiped.
+const soft=()=>{if(S.view==="home"||S.view==="langs")render();else verLabel();};
 let catReady=Promise.resolve();
 function useLang(l){
   LANG=l;try{localStorage.setItem("kl",l);}catch(e){}
   CAT=CATS[l]||null;
-  catReady=loadCat(l).then(c=>{if(LANG===l)CAT=c||null;render();});
+  catReady=loadCat(l).then(c=>{if(LANG===l)CAT=c||null;soft();});
   return catReady;
 }
-if(web)LANGS.forEach(([l])=>head("catalog-"+l+".json").then(ok=>ok||(l==="ms"?head("catalog.json"):false)).then(ok=>{if(AV[l]===undefined)AV[l]=ok;render();}));
+if(web)LANGS.forEach(([l])=>head("catalog-"+l+".json").then(ok=>ok||(l==="ms"?head("catalog.json"):false)).then(ok=>{if(AV[l]===undefined)AV[l]=ok;soft();}));
 const tk=q=>norm(q).trim().split(" ").filter(Boolean);
 const thumbOf=id=>"https://i.ytimg.com/vi/"+id+"/mqdefault.jpg";
 function catFind(q){const t=tk(q);return t.length?CAT.v.filter(v=>t.every(x=>v.n.includes(" "+x))):CAT.v;}
@@ -331,13 +334,13 @@ function catVideos(a,s){
   return first.concat(rest).slice(0,10).map(v=>({id:v.id,title:v.t,channel:CAT.ch[v.c].title,thumb:thumbOf(v.id)}));
 }
 const DataSource={
-  async songsByArtist(a){await catReady;if(CAT){const r=catSongs(a,true);if(r.length||!KEY)return r;}if(KEY)return realSongs(a,true);if(hasCat())return [];await wait();a=a.toLowerCase();return ALL.filter(x=>x[0].toLowerCase()===a||x[1].toLowerCase().includes(a));},
-  async tileSongs(i){await catReady;if(CAT)return catSongs("",false);if(KEY)return realSongs("top hits",false);if(hasCat())return [];await wait();return ALL.slice(i%4,i%4+4);},
+  async songsByArtist(a){await catReady;if(CAT)return catSongs(a,true);if(hasCat())return [];if(KEY)return realSongs(a,true);await wait();a=a.toLowerCase();return ALL.filter(x=>x[0].toLowerCase()===a||x[1].toLowerCase().includes(a));},
+  async tileSongs(i){await catReady;if(CAT)return catSongs("",false);if(hasCat())return [];if(KEY)return realSongs("top hits",false);await wait();return ALL.slice(i%4,i%4+4);},
   async karaokeVideos(a,s){
     await catReady;
-    if(CAT){const r=catVideos(a,s);if(r.length||!KEY)return r;}
-    if(KEY){const it=await yt((a+" "+s).trim()+" karaoke",10);return it.filter(x=>x.id&&x.id.videoId).map(x=>({id:x.id.videoId,title:dec(x.snippet.title),channel:dec(x.snippet.channelTitle),thumb:thumb(x)}));}
+    if(CAT)return catVideos(a,s);
     if(hasCat())return [];
+    if(KEY){const it=await yt((a+" "+s).trim()+" karaoke",10);return it.filter(x=>x.id&&x.id.videoId).map(x=>({id:x.id.videoId,title:dec(x.snippet.title),channel:dec(x.snippet.channelTitle),thumb:thumb(x)}));}
     await wait();
     return ["Sing King","KaraFun","Karaoke Hits","Zoom Karaoke"].map((c,k)=>({id:"demo"+k+s.replace(/\s/g,""),title:a+" - "+s+" (Karaoke Version)",channel:c}));
   }
@@ -403,7 +406,7 @@ function queueHtml(){
   "<ul>"+S.q.map((v,i)=>'<li><span class="n">'+(i+1)+'</span>'+im(v.thumb)+'<span class="t">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><span>'+(i?'<button class="btn" data-a="up" data-i="'+i+'">Up</button> ':'')+'<button class="btn" data-a="del" data-i="'+i+'">Remove</button></span></li>').join("")+"</ul>";
 }
 function render(){
-  $("ver").textContent="v17"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");
+  verLabel();
   $("bSet").classList.toggle("on",!KEY&&!hasCat());
   $("oL").textContent=OUT==="second"?(D.ready?"2nd screen":"2nd: wait"):"Main screen";$("bScr").classList.toggle("on",OUT==="second");
   $("plt").textContent=S.now?(S.paused?"\u23f8 ":"")+(second()?"[2nd screen] ":"")+"Now playing: "+S.now.title+" ("+S.now.channel+")":"Nothing playing.";
@@ -412,7 +415,7 @@ function render(){
   if(S.view==="home"){
     h='<div class="tiles">'+TILES.map((t,i)=>'<button class="tile" style="--tc:'+COL[i]+'" data-a="tile" data-i="'+i+'"><b>'+t[1]+"</b>"+t[0]+"</button>").join("")+"</div>";
   }else if(S.view==="langs"){
-    h='<div class="tiles lg6">'+LANGS.map((x,i)=>{const off=AV[x[0]]===false&&!KEY;return '<button class="tile'+(off?" off":"")+'" style="--tc:'+LC[i]+'" data-a="lang" data-lg="'+x[0]+'"><b>'+LB[i]+"</b>"+x[1]+(off?'<span class="sub">No catalog yet</span>':"")+"</button>";}).join("")+"</div>";
+    h='<div class="tiles lg6">'+LANGS.map((x,i)=>{const off=AV[x[0]]===false;return '<button class="tile'+(off?" off":"")+'" style="--tc:'+LC[i]+'" data-a="lang" data-lg="'+x[0]+'"><b>'+LB[i]+"</b>"+x[1]+(off?'<span class="sub">No catalog yet</span>':"")+"</button>";}).join("")+"</div>";
   }else if(S.view==="artist"){
     h='<h3>Find song \u00b7 '+langName(LANG)+'</h3><div class="row"><input id="ai" type="text" placeholder="Singer or song, e.g. Ed Sheeran" value="'+esc(S.artist)+'"><button class="btn" data-a="find">Search</button></div>'+songs();
   }else if(S.view==="list"){
@@ -436,7 +439,7 @@ async function find(){
   if(!S.artist)return;
   S.msg="Searching...";S.list=[];render();
   S.list=await safe(()=>DataSource.songsByArtist(S.artist),[]);
-  S.msg=S.msg.startsWith("Error")?S.msg:(S.list.length?"":(KEY||CAT?"No songs found.":(hasCat()?"No "+langName(LANG)+" catalog yet. Pick another language.":"No songs found. Sample data: Ed Sheeran, Taylor Swift, Mahalini.")));
+  S.msg=S.msg.startsWith("Error")?S.msg:(S.list.length?"":(CAT?"No songs found.":(hasCat()?"No "+langName(LANG)+" catalog yet. Pick another language.":(KEY?"No songs found.":"No songs found. Sample data: Ed Sheeran, Taylor Swift, Mahalini."))));
   render();
 }
 
