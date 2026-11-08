@@ -79,13 +79,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .rot{display:none;position:fixed;inset:0;z-index:50;background:var(--bg);color:var(--ink);flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px;font:24px "Righteous",system-ui,sans-serif}
 .rot b{font-size:56px;font-weight:400;color:var(--acc)}
 .vfs{position:absolute;top:50%;right:10px;transform:translateY(-50%);z-index:3}
-.fsbar{position:absolute;top:50%;right:14px;transform:translateY(-50%);z-index:4;display:none;flex-direction:column;gap:10px;align-items:stretch;opacity:0;transition:opacity .25s}
-.fsbar .btn{min-width:92px;text-align:center}
+.fsbar{position:absolute;top:50%;right:14px;transform:translateY(-50%);z-index:4;display:none;flex-direction:row-reverse;align-items:center;gap:10px}
+.fsl{display:none;flex-direction:column;gap:8px}
+.fsbar.open .fsl{display:flex}
+.fsbar .fsl .btn{min-width:92px;text-align:center}
+.fsbar .fsm{min-width:0;width:48px;height:48px;padding:0;border-radius:50%;font-size:20px;line-height:1;opacity:.75}
+.fsbar.open .fsm,.fsbar .fsm:hover{opacity:1}
 #pl:fullscreen{max-height:none;aspect-ratio:auto;border-radius:0;width:100%;height:100%}
 #pl:fullscreen .fsbar{display:flex}
-#pl:fullscreen:hover .fsbar{opacity:1}
 #pl:fullscreen .vfs{display:none}
-@media(hover:none){#pl:fullscreen .fsbar{opacity:.9}}
 #bFull{--tc:#22c55e}
 #bScr{--tc:#22d3ee}
 .steps{margin:6px 0 10px 20px;line-height:1.65;font-size:15px}.steps a{color:var(--acc)}
@@ -108,8 +110,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 <div id="amb"></div>
 <div class="app">
   <section class="left">
-    <div id="pl" class="player"><div id="yt"></div><div id="plt"></div><button id="vfs" class="btn sm vfs">⛶ Video</button><div class="fsbar"><button class="btn" data-fs="bPause">Pause</button><button class="btn" data-fs="bNext">Next</button><button class="btn" data-fs="bVd">Vol -</button><button class="btn" data-fs="bVu">Vol +</button><button class="btn" data-fs="bMute">Mute</button><button class="btn" data-fs="exit">Exit</button></div></div>
-    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v13</span></div>
+    <div id="pl" class="player"><div id="yt"></div><div id="plt"></div><button id="vfs" class="btn sm vfs">⛶ Video</button><div class="fsbar"><button id="fsm" class="btn fsm" aria-label="Menu">☰</button><div class="fsl"><button class="btn" data-fs="bPause">Pause</button><button class="btn" data-fs="bNext">Next</button><button class="btn" data-fs="bVd">Vol -</button><button class="btn" data-fs="bVu">Vol +</button><button class="btn" data-fs="bMute">Mute</button><button class="btn" data-fs="exit">Exit</button></div></div></div>
+    <div class="nrow"><div id="next" class="next"></div><span class="sub" style="margin-left:auto;font-size:12px">v14</span></div>
     <div id="queue" class="queue"></div>
   </section>
   <section class="right"><div id="main"></div></section>
@@ -433,10 +435,15 @@ document.addEventListener("fullscreenchange",fsLabel);
 document.addEventListener("webkitfullscreenchange",fsLabel);
 $("bFull").onclick=toggleDoc;
 $("vfs").onclick=toggleVid;
-document.querySelector(".fsbar").addEventListener("click",e=>{
+const fsb=document.querySelector(".fsbar");let fsT;
+function fsOpen(v){fsb.classList.toggle("open",v);$("fsm").textContent=v?"\u2715":"\u2630";clearTimeout(fsT);if(v)fsT=setTimeout(()=>fsOpen(false),6000);}
+fsb.addEventListener("click",e=>{
+  if(e.target.closest("#fsm")){fsOpen(!fsb.classList.contains("open"));return;}
   const b=e.target.closest("[data-fs]");if(!b)return;
-  if(b.dataset.fs==="exit")fsExit();else $(b.dataset.fs).click();
+  if(b.dataset.fs==="exit"){fsOpen(false);fsExit();}else{$(b.dataset.fs).click();fsOpen(true);}
 });
+document.addEventListener("fullscreenchange",()=>fsOpen(false));
+document.addEventListener("webkitfullscreenchange",()=>fsOpen(false));
 
 // ---------- Screen kedua: projector / HDMI ----------
 let OUT="main";try{OUT=localStorage.getItem("ko")==="second"?"second":"main";}catch(e){}
