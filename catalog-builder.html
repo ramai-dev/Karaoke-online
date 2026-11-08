@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Karaoke Catalog Builder</title>
+<style>
+:root{--bg:#07040f;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.14);--ink:#f3eefe;--sub:#a99cc8;--acc:#a78bfa;--acc2:#7c3aed}
+*{box-sizing:border-box}
+body{margin:0;padding:24px 16px 60px;background:radial-gradient(70% 40% at 10% 0%,#2a1060 0%,transparent 70%),var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.w{max-width:900px;margin:0 auto}
+h1{margin:0 0 4px;font-size:28px;color:var(--acc)}
+.sub{color:var(--sub);font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:16px 0}
+button,select,input{font:inherit;color:var(--ink)}
+.btn{background:linear-gradient(180deg,#8b5cf6,var(--acc2));border:0;border-radius:12px;padding:10px 18px;cursor:pointer;font-weight:600}
+.btn:disabled{opacity:.45;cursor:default}
+input[type=password],input[type=text],select{background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+input[type=password]{width:min(420px,100%)}input[type=text]{width:min(560px,100%)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0}
+#log{font:13px/1.5 ui-monospace,Consolas,monospace;color:var(--sub);max-height:220px;overflow:auto;white-space:pre-wrap}
+.bar{height:8px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden;margin:10px 0}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8b5cf6,#22d3ee);transition:width .2s}
+.ch{display:flex;gap:8px;align-items:center;padding:3px 0}
+.tag{font-size:12px;padding:1px 8px;border-radius:9px;background:rgba(255,255,255,.1);color:var(--sub)}
+select.lg{padding:3px 8px;font-size:14px}
+.tag.bad{background:rgba(244,63,94,.2);color:#fda4af}
+</style>
+</head>
+<body>
+<div class="w">
+<h1>Karaoke Catalog Builder</h1>
+<div class="sub">Reads every video from your chosen channels and builds one catalog file per language (Malay, English, Korean, Indonesian, Others). The app searches those files, so visitors use no YouTube quota.</div>
+
+<div class="card">
+  <div class="row"><b>1. YouTube API key</b> <span class="sub" id="ks"></span></div>
+  <div class="row"><input id="key" type="password" placeholder="AIza... (filled automatically if you saved it in the app)"></div>
+</div>
+
+<div class="card">
+  <div class="row"><b>2. Channel list</b> <span class="sub">Choose the channels.json you downloaded from the Finder.</span></div>
+  <div class="row"><input type="file" id="file" accept=".json,application/json"></div>
+  <div id="chl"></div>
+  <div class="row" style="margin-top:12px"><b>Add a channel</b></div>
+  <div class="row"><input id="add" type="text" placeholder="Paste a channel link or @name, e.g. https://www.youtube.com/@example"><select id="addl" class="lg"></select><button class="btn" id="addb">Add</button><button class="btn" id="svl">Save channel list</button></div>
+  <div class="sub" id="am">Open the channel on YouTube, copy the address from the top, and paste it here. Links that look like youtube.com/@name or youtube.com/channel/UC... both work.</div>
+</div>
+
+<div class="card">
+  <div class="row"><b>3. Build</b></div>
+  <div class="row">
+    <label>Videos per channel (newest first)
+      <select id="max"><option value="1000">1,000</option><option value="2500" selected>2,500</option><option value="5000">5,000</option></select>
+    </label>
+    <label><input type="checkbox" id="only" checked> Keep only titles that look like karaoke</label>
+  </div>
+  <div class="row"><button class="btn" id="go" disabled>Start</button></div>
+  <div class="sub">Reading a channel costs about 1 unit per 50 videos, so this stays far below your 10,000 daily units. It can take a few minutes. Keep this page open.</div>
+  <div class="bar"><i id="pg"></i></div>
+  <div id="log"></div>
+  <div id="outs" class="row"></div>
+</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let KEY="";try{KEY=localStorage.getItem("yk")||"";}catch(e){}
+$("key").value=KEY;
+const ks=()=>{$("ks").textContent=KEY?"Key found.":"No key yet. Paste it below.";};ks();
+$("key").oninput=()=>{KEY=$("key").value.trim();ks();};
+const log=t=>{const l=$("log");l.textContent+=t+"\n";l.scrollTop=l.scrollHeight;};
+const prog=p=>$("pg").style.width=Math.round(Math.min(1,p)*100)+"%";
+const KWD=/karaoke|karoke|karaok|minus ?one|tanpa vokal|no vocals?|instrumental|backing track/i;
+const LANGS=[["ms","Malay"],["en","English"],["ko","Korean"],["id","Indonesian"],["ot","Others"]];
+const guess=c=>({MY:"ms",ID:"id",KR:"ko",US:"en",GB:"en",AU:"en",CA:"en",IE:"en",NZ:"en"}[c]||(c?"ot":"ms"));
+const opts=sel=>LANGS.map(x=>'<option value="'+x[0]+'"'+(x[0]===sel?" selected":"")+'>'+x[1]+'</option>').join("");
+let CH=[],OUT=null,calls=0;
+$("addl").innerHTML=opts("ms");
+
+function renderList(){
+  $("chl").innerHTML=CH.map((c,i)=>'<label class="ch"><input type="checkbox" data-i="'+i+'"'+(c.on?" checked":"")+'> <span style="flex:1">'+esc(c.title)+'</span> <select class="lg" data-l="'+i+'">'+opts(c.lang)+'</select> '+(c.country?'<span class="tag'+(["ID","PH"].includes(c.country)?" bad":"")+'">'+c.country+'</span>':"")+'</label>').join("")||'<div class="sub">No channels yet. Choose a file or add one below.</div>';
+  $("go").disabled=!CH.some(c=>c.on);
+}
+$("chl").addEventListener("change",e=>{
+  const l=e.target.dataset.l;if(l!=null){CH[l].lang=e.target.value;return;}
+  const i=e.target.dataset.i;if(i!=null){CH[i].on=e.target.checked;$("go").disabled=!CH.some(c=>c.on);}
+});
+$("file").onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const j=JSON.parse(await f.text());
+    for(const c of (j.channels||[]))if(c.uploads&&!CH.some(x=>x.id===c.id))CH.push(Object.assign({on:true},c,{lang:c.lang||guess(c.country)}));
+    renderList();
+  }catch(err){$("chl").textContent="Could not read that file.";}
+};
+$("addb").onclick=async()=>{
+  const raw=$("add").value.trim();if(!raw)return;
+  KEY=$("key").value.trim();if(!KEY){$("am").textContent="Please paste your YouTube API key first.";return;}
+  let m,params;
+  if((m=/youtube\.com\/channel\/(UC[\w-]{20,})/i.exec(raw))||(m=/^(UC[\w-]{20,})$/.exec(raw)))params={id:m[1]};
+  else if((m=/@([^\/?&#\s]+)/.exec(raw)))params={forHandle:"@"+decodeURIComponent(m[1])};
+  else if((m=/youtube\.com\/user\/([\w.\-]+)/i.exec(raw)))params={forUsername:m[1]};
+  else{$("am").textContent="I could not read that. Use a link like youtube.com/@name or youtube.com/channel/UC...";return;}
+  $("addb").disabled=true;
+  try{
+    const j=await api("channels",Object.assign({part:"snippet,statistics,contentDetails"},params));
+    const x=j.items&&j.items[0];
+    if(!x){$("am").textContent="Channel not found. Check the link.";return;}
+    if(CH.some(c=>c.id===x.id)){$("am").textContent=x.snippet.title+" is already in the list.";return;}
+    CH.push({on:true,lang:$("addl").value,id:x.id,title:x.snippet.title,country:x.snippet.country||"",
+      subs:x.statistics&&!x.statistics.hiddenSubscriberCount?+x.statistics.subscriberCount:0,
+      uploads:(x.contentDetails&&x.contentDetails.relatedPlaylists&&x.contentDetails.relatedPlaylists.uploads)||""});
+    $("am").textContent="Added: "+x.snippet.title+". Press Start to rebuild the catalog with it.";$("add").value="";renderList();
+  }catch(e){$("am").textContent="Error: "+e.message;}
+  finally{$("addb").disabled=false;}
+};
+$("add").addEventListener("keydown",e=>{if(e.key==="Enter")$("addb").click();});
+$("svl").onclick=()=>{
+  const out={generated:new Date().toISOString().slice(0,10),channels:CH.map(c=>({id:c.id,title:c.title,uploads:c.uploads,subs:c.subs||0,country:c.country||"",lang:c.lang||"ms"}))};
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,1)],{type:"application/json"}));a.download="channels.json";a.click();
+};
+const esc=s=>String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+
+async function api(path,params){
+  const u=new URL("https://www.googleapis.com/youtube/v3/"+path);
+  Object.entries(Object.assign({},params,{key:KEY})).forEach(([k,v])=>u.searchParams.set(k,v));
+  calls++;
+  const r=await fetch(u),j=await r.json();
+  if(!r.ok){const e=new Error((j.error&&j.error.message)||("HTTP "+r.status));e.reason=j.error&&j.error.errors&&j.error.errors[0]&&j.error.errors[0].reason;throw e;}
+  return j;
+}
+const isQuota=e=>e.reason==="quotaExceeded"||e.reason==="dailyLimitExceeded";
+const dur=s=>{const m=/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(s||"");return m?(+m[1]||0)*3600+(+m[2]||0)*60+(+m[3]||0):0;};
+const chunk=(a,n)=>{const o=[];for(let i=0;i<a.length;i+=n)o.push(a.slice(i,i+n));return o;};
+
+$("go").onclick=async()=>{
+  KEY=$("key").value.trim();
+  if(!KEY){alert("Please paste your YouTube API key first.");return;}
+  try{localStorage.setItem("yk",KEY);}catch(e){}
+  const pick=CH.filter(c=>c.on);
+  if(!pick.length){alert("Tick at least one channel.");return;}
+  $("go").disabled=true;$("outs").innerHTML="";$("log").textContent="";prog(0);calls=0;OUT=null;
+  const max=+$("max").value,only=$("only").checked,vids=new Map();let stopped=false;
+  try{
+    // 1. list uploads of each channel
+    for(let i=0;i<pick.length&&!stopped;i++){
+      const c=pick[i];let tok="",n=0,keep=0;
+      try{
+        do{
+          const j=await api("playlistItems",{part:"snippet",maxResults:50,playlistId:c.uploads,pageToken:tok});
+          for(const x of j.items||[]){
+            n++;const s=x.snippet||{},id=s.resourceId&&s.resourceId.videoId,t=s.title||"";
+            if(!id||t==="Private video"||t==="Deleted video")continue;
+            if(only&&!KWD.test(t))continue;
+            if(!vids.has(id)){vids.set(id,{id:id,t:t,c:i});keep++;}
+          }
+          tok=j.nextPageToken||"";
+        }while(tok&&n<max);
+      }catch(e){
+        if(isQuota(e)){log("Daily limit reached. Using what was collected so far.");stopped=true;}
+        else log("Skipped "+c.title+": "+e.message);
+      }
+      log((i+1)+"/"+pick.length+"  "+c.title+": read "+n+", kept "+keep);
+      prog((i+1)/pick.length*0.5);
+    }
+    if(!vids.size){log("Nothing found.");return;}
+    // 2. check each video: public, embeddable, length, views
+    log("Checking "+vids.size+" videos (embeddable, length, views)...");
+    const batches=chunk([...vids.keys()],50);let done=0;
+    const work=async b=>{
+      try{
+        const j=await api("videos",{part:"status,contentDetails,statistics",id:b.join(",")});
+        const ok=new Set();
+        for(const x of j.items||[]){
+          const v=vids.get(x.id);if(!v)continue;
+          const d=dur(x.contentDetails&&x.contentDetails.duration);
+          if(x.status&&x.status.embeddable===false||x.status&&x.status.privacyStatus!=="public"||d<60||d>900){continue;}
+          v.w=+((x.statistics&&x.statistics.viewCount)||0);v.ok=true;ok.add(x.id);
+        }
+      }catch(e){if(isQuota(e)){stopped=true;log("Daily limit reached while checking.");}else throw e;}
+      done++;prog(0.5+done/batches.length*0.5);
+    };
+    for(let i=0;i<batches.length&&!stopped;i+=4)await Promise.all(batches.slice(i,i+4).map(work));
+    const good=[...vids.values()].filter(v=>v.ok);
+    const drop=vids.size-good.length;
+    OUT={};
+    for(const [lg] of LANGS){
+      const mine=good.filter(v=>pick[v.c].lang===lg);
+      if(!mine.length)continue;
+      const used=[...new Set(mine.map(v=>v.c))].sort((a,b)=>a-b),map=new Map(used.map((c,k)=>[c,k]));
+      OUT[lg]={v:1,generated:new Date().toISOString().slice(0,10),lang:lg,
+        channels:used.map(c=>({id:pick[c].id,title:pick[c].title})),
+        videos:mine.sort((a,b)=>b.w-a.w).map(v=>[v.id,v.t,map.get(v.c),v.w])};
+    }
+    prog(1);log("Done. "+good.length+" videos kept ("+drop+" removed: not embeddable, too short/long or private). YouTube calls used: "+calls+".");
+    const names=Object.fromEntries(LANGS);
+    let html="";
+    for(const lg of Object.keys(OUT)){
+      const mb=(JSON.stringify(OUT[lg]).length/1048576).toFixed(1);
+      html+='<button class="btn" data-lg="'+lg+'">Download catalog-'+lg+'.json ('+names[lg]+', '+OUT[lg].videos.length.toLocaleString()+' videos, '+mb+' MB)</button>';
+    }
+    if(Object.keys(OUT).length>1)html+='<button class="btn" data-lg="all">Download all</button>';
+    $("outs").innerHTML=html;
+  }catch(e){log("Error: "+e.message);}
+  finally{$("go").disabled=false;}
+};
+function save(lg){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(OUT[lg])],{type:"application/json"}));a.download="catalog-"+lg+".json";a.click();}
+$("outs").addEventListener("click",e=>{
+  const b=e.target.closest("[data-lg]");if(!b||!OUT)return;
+  if(b.dataset.lg==="all"){Object.keys(OUT).forEach((lg,i)=>setTimeout(()=>save(lg),i*600));}else save(b.dataset.lg);
+});
+</script>
+</body>
+</html>
