@@ -256,16 +256,19 @@ const norm=x=>" "+String(x).toLowerCase().normalize("NFD").replace(/[\u0300-\u03
 const web=/^https?:$/.test(location.protocol);
 const getJ=f=>fetch(f,{cache:"no-cache"}).then(r=>r.ok?r.json():null).catch(()=>null);
 const head=f=>fetch(f,{method:"HEAD",cache:"no-cache"}).then(r=>r.ok).catch(()=>false);
+const NONLAT=/[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af\u3040-\u30ff\u3400-\u9fff\u0e00-\u0e7f]/,HANGUL=/[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/;
 function loadCat(l){
   if(CATS[l]!==undefined)return Promise.resolve(CATS[l]);
   if(!web)return Promise.resolve(CATS[l]=false);
   return getJ("catalog-"+l+".json").then(j=>j||(l==="ms"?getJ("catalog.json"):null)).then(j=>{
-    CATS[l]=(j&&j.videos&&j.videos.length)?{ch:j.channels,v:j.videos.map(x=>({id:x[0],t:x[1],c:x[2],w:x[3]||0,n:norm(x[1])}))}:false;
+    // Keep each catalog to its own language: titles in Korean/Japanese/Chinese/Thai script, or videos tagged with such a language, do not belong in Malay, Indonesian or English.
+    const FOREIGN=/^(ko|ja|zh|th|hi|ar)/;
+    CATS[l]=(j&&j.videos&&j.videos.length)?{ch:j.channels,v:j.videos.map(x=>({id:x[0],t:x[1],c:x[2],w:x[3]||0,a:x[4]||"",n:norm(x[1])})).filter(v=>l==="ko"||l==="ot"||!(NONLAT.test(v.t)||FOREIGN.test(v.a)))}:false;
     if(CATS[l])CATS[l].art=buildArt(CATS[l].v);
     AV[l]=!!CATS[l];return CATS[l];
   });
 }
-const verLabel=()=>{$("ver").textContent="v19"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
+const verLabel=()=>{$("ver").textContent="v21"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
 // After a catalog loads, only redraw screens that have no text box, so nothing the user typed is wiped.
 const soft=()=>{if(S.view==="home"||S.view==="langs")render();else verLabel();};
 let catReady=Promise.resolve();
@@ -315,7 +318,10 @@ function parse(v){
 }
 function catSongs(q,byArtist){
   const g=new Map();
-  for(const v of catFind(q)){
+  let pool=catFind(q);
+  // Top Korean: prefer videos that are clearly Korean (Hangul title or tagged Korean); fall back to all if too few.
+  if(!q&&LANG==="ko"){const k=pool.filter(v=>HANGUL.test(v.t)||/^ko/.test(v.a));if(k.length>=10)pool=k;}
+  for(const v of pool){
     const p=parse(v);if(!p.name)continue;
     const k=norm(p.name)+"|"+norm(p.artist),e=g.get(k);
     if(!e)g.set(k,{n:p.name,a:p.artist,s:v.w+1000,top:v.w,id:v.id});
@@ -402,7 +408,7 @@ function songs(){
 function queueHtml(){
   return '<div class="qh"><h3>Queue</h3><span class="sub">'+S.q.length+(S.q.length===1?" song":" songs")+'</span></div>'+
   (S.q.length?"":'<div class="sub">Nothing queued yet. Find a song and tap Add.</div>')+
-  "<ul>"+S.q.map((v,i)=>'<li><span class="n">'+(i+1)+'</span>'+im(v.thumb)+'<span class="t">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><span>'+(i?'<button class="btn" data-a="up" data-i="'+i+'">Up</button> ':'')+'<button class="btn" data-a="del" data-i="'+i+'">Remove</button></span></li>').join("")+"</ul>";
+  "<ul>"+S.q.map((v,i)=>'<li><span class="n">'+(i+1)+'</span>'+im(v.thumb)+'<span class="t">'+esc(v.title)+'<div class="sub">'+esc(v.channel)+'</div></span><span>'+(i>1?'<button class="btn" data-a="top" data-i="'+i+'">Top</button> ':'')+(i?'<button class="btn" data-a="up" data-i="'+i+'">Up</button> ':'')+'<button class="btn" data-a="del" data-i="'+i+'">Remove</button></span></li>').join("")+"</ul>";
 }
 function render(){
   verLabel();
@@ -465,6 +471,7 @@ document.querySelector(".app").addEventListener("click",async e=>{
     const k=key(S.cur),n=S.fav.findIndex(x=>key(x)===k);
     if(n>=0)S.fav.splice(n,1);else S.fav.push(S.cur);render();
   }else if(a==="up"&&i>0){const [it]=S.q.splice(i,1);S.q.splice(i-1,0,it);render();}
+  else if(a==="top"&&i>0){const [it]=S.q.splice(i,1);S.q.unshift(it);render();}
   else if(a==="del"){S.q.splice(i,1);render();}
   else if(a==="hadd"){const v=S.hist[i];if(!S.now)setNow(v);else S.q.push(v);S.msg="Added: "+v.channel;render();}
   else if(a==="savekey"){OWN=$("ki").value.trim();KEY=OWN||SHARED_KEY;try{if(OWN)localStorage.setItem("yk",OWN);else localStorage.removeItem("yk");}catch(e){}S.msg=OWN?"Saved. Press Back, then try Find song.":"The key box is empty.";render();}
