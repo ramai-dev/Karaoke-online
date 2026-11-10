@@ -223,7 +223,7 @@ async function yt(q,n){
   const j=await r.json();
   if(!r.ok){
     const reason=j.error&&j.error.errors&&j.error.errors[0]&&j.error.errors[0].reason;
-    if(reason==="quotaExceeded"||reason==="dailyLimitExceeded")throw new Error(OWN?"Your daily YouTube limit is used up. Try again tomorrow.":"Today's free searches are used up. Add your own free key with the gear button, or try again tomorrow.");
+    if(reason==="quotaExceeded"||reason==="dailyLimitExceeded")throw new Error("Today's online searches are used up. The catalog still works. Try again tomorrow.");
     throw new Error((j.error&&j.error.message)||"YouTube error "+r.status);
   }
   const items=(j.items||[]).map(x=>({id:{videoId:x.id&&x.id.videoId},snippet:{title:x.snippet.title,channelTitle:x.snippet.channelTitle,thumbnails:{medium:{url:thumb(x)}}}}));
@@ -268,7 +268,7 @@ function loadCat(l){
     AV[l]=!!CATS[l];return CATS[l];
   });
 }
-const verLabel=()=>{$("ver").textContent="v22"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
+const verLabel=()=>{$("ver").textContent="v23"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
 // After a catalog loads, only redraw screens that have no text box, so nothing the user typed is wiped.
 const soft=()=>{if(S.view==="home"||S.view==="langs")render();else verLabel();};
 let catReady=Promise.resolve();
@@ -341,17 +341,19 @@ function catVideos(a,s){
 const DataSource={
   async songsByArtist(a){await catReady;if(CAT)return catSongs(a,true);if(hasCat())return [];if(KEY)return realSongs(a,true);await wait();a=a.toLowerCase();return ALL.filter(x=>x[0].toLowerCase()===a||x[1].toLowerCase().includes(a));},
   async tileSongs(i){await catReady;if(CAT)return catSongs("",false);if(hasCat())return [];if(KEY)return realSongs("top hits",false);await wait();return ALL.slice(i%4,i%4+4);},
-  async karaokeVideos(a,s){
+  async karaokeVideos(a,s,online){
     await catReady;
+    if(!online){
     if(CAT)return catVideos(a,s);
     if(hasCat())return [];
+    }
     if(KEY){const it=await yt((a+" "+s).trim()+" karaoke",10);return it.filter(x=>x.id&&x.id.videoId).map(x=>({id:x.id.videoId,title:dec(x.snippet.title),channel:dec(x.snippet.channelTitle),thumb:thumb(x)}));}
     await wait();
     return ["Sing King","KaraFun","Karaoke Hits","Zoom Karaoke"].map((c,k)=>({id:"demo"+k+s.replace(/\s/g,""),title:a+" - "+s+" (Karaoke Version)",channel:c}));
   }
 };
 
-const S={view:"home",stack:[],artist:"",title:"",list:[],cur:null,vids:[],q:[],now:null,paused:false,fav:[],hist:[],vol:70,muted:false,msg:""};
+const S={online:false,did:false,view:"home",stack:[],artist:"",title:"",list:[],cur:null,vids:[],q:[],now:null,paused:false,fav:[],hist:[],vol:70,muted:false,msg:""};
 const key=x=>x[0]+"|"+x[1];
 const safe=async(f,fb)=>{try{return await f();}catch(e){S.msg="Error: "+e.message;return fb;}};
 function go(v){S.stack.push(S.view);S.view=v;S.msg="";}
@@ -422,7 +424,7 @@ function render(){
   }else if(S.view==="langs"){
     h='<div class="tiles lg6">'+LANGS.map((x,i)=>{const off=AV[x[0]]===false;return '<button class="tile'+(off?" off":"")+'" style="--tc:'+LC[i]+'" data-a="lang" data-lg="'+x[0]+'"><b>'+LB[i]+"</b>"+x[1]+(off?'<span class="sub">No catalog yet</span>':"")+"</button>";}).join("")+"</div>";
   }else if(S.view==="artist"){
-    h='<h3>Find song \u00b7 '+langName(LANG)+'</h3><div class="row"><input id="ai" type="text" placeholder="Singer or song, e.g. Ed Sheeran" value="'+esc(S.artist)+'"><button class="btn" data-a="find">Search</button></div>'+songs();
+    h='<h3>Find song \u00b7 '+langName(LANG)+'</h3><div class="row"><input id="ai" type="text" placeholder="Singer or song, e.g. Ed Sheeran" value="'+esc(S.artist)+'"><button class="btn" data-a="find">Search</button></div>'+songs()+(S.did&&KEY&&!S.online?'<div class="row" style="margin-top:12px"><button class="btn" data-a="online">Search online (uses daily limit)</button></div>':"");
   }else if(S.view==="list"){
     h="<h3>"+esc(S.title)+"</h3>"+(S.list.length||S.msg?songs():'<div class="sub">No songs here yet.</div>');
   }else if(S.view==="videos"){
@@ -439,10 +441,17 @@ function render(){
   $("main").innerHTML=h;$("queue").innerHTML=queueHtml();syncPlayer();
 }
 
+async function findOnline(){
+  if(!KEY||!S.artist)return;
+  S.online=true;S.msg="Searching online...";S.list=[];render();
+  S.list=await safe(()=>realSongs(S.artist,true),[]);
+  if(!S.msg.startsWith("Error"))S.msg=S.list.length?"Online results (not sorted by language).":"No online results.";
+  render();
+}
 async function find(){
   S.artist=($("ai").value||"").trim();
   if(!S.artist)return;
-  S.msg="Searching...";S.list=[];render();
+  S.online=false;S.did=true;S.msg="Searching...";S.list=[];render();
   S.list=await safe(()=>DataSource.songsByArtist(S.artist),[]);
   S.msg=S.msg.startsWith("Error")?S.msg:(S.list.length?"":(CAT?"No songs found.":(hasCat()?"No "+langName(LANG)+" catalog yet. Pick another language.":(KEY?"No songs found.":"No songs found. Sample data: Ed Sheeran, Taylor Swift, Mahalini."))));
   render();
@@ -458,12 +467,12 @@ document.querySelector(".app").addEventListener("click",async e=>{
     else{S.next="top";go("langs");render();}
   }else if(a==="lang"){
     useLang(b.dataset.lg);
-    if(S.next==="top"){S.title="Top \u00b7 "+langName(LANG);S.list=[];go("list");S.msg="Searching...";render();S.list=await safe(()=>DataSource.tileSongs(2),[]);if(!S.msg.startsWith("Error"))S.msg="";render();}
+    if(S.next==="top"){S.title="Top \u00b7 "+langName(LANG);S.online=false;S.list=[];go("list");S.msg="Searching...";render();S.list=await safe(()=>DataSource.tileSongs(2),[]);if(!S.msg.startsWith("Error"))S.msg="";render();}
     else{S.list=[];S.artist="";go("artist");render();}
   }else if(a==="find")find();
   else if(a==="song"){
     S.cur=S.list[i];S.vids=[];go("videos");S.msg="Finding karaoke videos...";render();
-    S.vids=await safe(()=>DataSource.karaokeVideos(S.cur[0],S.cur[1]),[]);if(!S.msg.startsWith("Error"))S.msg="";render();
+    S.vids=await safe(()=>DataSource.karaokeVideos(S.cur[0],S.cur[1],S.online),[]);if(!S.msg.startsWith("Error"))S.msg="";render();
   }else if(a==="add"){
     const v=S.vids[i];if(!S.now)setNow(v);else S.q.push(v);
     S.msg="Added: "+v.channel;render();
@@ -472,6 +481,7 @@ document.querySelector(".app").addEventListener("click",async e=>{
     if(n>=0)S.fav.splice(n,1);else S.fav.push(S.cur);render();
   }else if(a==="up"&&i>0){const [it]=S.q.splice(i,1);S.q.splice(i-1,0,it);render();}
   else if(a==="top"&&i>0){const [it]=S.q.splice(i,1);S.q.unshift(it);render();}
+  else if(a==="online"){findOnline();}
   else if(a==="del"){S.q.splice(i,1);render();}
   else if(a==="hadd"){const v=S.hist[i];if(!S.now)setNow(v);else S.q.push(v);S.msg="Added: "+v.channel;render();}
   else if(a==="savekey"){return;OWN=$("ki").value.trim();KEY=OWN||SHARED_KEY;try{if(OWN)localStorage.setItem("yk",OWN);else localStorage.removeItem("yk");}catch(e){}S.msg=OWN?"Saved. Press Back, then try Find song.":"The key box is empty.";render();}
