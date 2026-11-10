@@ -135,7 +135,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
   <button id="bPause"><i>⏯</i>Pause</button>
   <button id="bNext"><i>⏭</i>Next</button>
   <button id="bBack"><i>↩</i>Back</button>
-  <button id="bSet" title="YouTube API key" aria-label="YouTube API key"><i>⚙</i></button>
+  <button id="bSet" hidden style="display:none" title="YouTube API key" aria-label="YouTube API key"><i>⚙</i></button>
 </div>
 <script>
 // Second-screen window (projector / HDMI): same file, opened with ?display=1
@@ -195,7 +195,7 @@ const wait=()=>new Promise(r=>setTimeout(r,250));
 // Optional shared key for everyone who opens this page (paste between the quotes).
 // Restrict it in Google Cloud to your site address. People can still add their own key with the gear button.
 const SHARED_KEY="";
-let OWN="";try{OWN=localStorage.getItem("yk")||"";}catch(e){}
+let OWN="";// Locked: the API key cannot be changed from the app.
 let KEY=OWN||SHARED_KEY;
 const dec=s=>{const t=document.createElement("textarea");t.innerHTML=s;return t.value;};
 function clean(t,a){
@@ -268,7 +268,7 @@ function loadCat(l){
     AV[l]=!!CATS[l];return CATS[l];
   });
 }
-const verLabel=()=>{$("ver").textContent="v21"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
+const verLabel=()=>{$("ver").textContent="v22"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
 // After a catalog loads, only redraw screens that have no text box, so nothing the user typed is wiped.
 const soft=()=>{if(S.view==="home"||S.view==="langs")render();else verLabel();};
 let catReady=Promise.resolve();
@@ -474,8 +474,8 @@ document.querySelector(".app").addEventListener("click",async e=>{
   else if(a==="top"&&i>0){const [it]=S.q.splice(i,1);S.q.unshift(it);render();}
   else if(a==="del"){S.q.splice(i,1);render();}
   else if(a==="hadd"){const v=S.hist[i];if(!S.now)setNow(v);else S.q.push(v);S.msg="Added: "+v.channel;render();}
-  else if(a==="savekey"){OWN=$("ki").value.trim();KEY=OWN||SHARED_KEY;try{if(OWN)localStorage.setItem("yk",OWN);else localStorage.removeItem("yk");}catch(e){}S.msg=OWN?"Saved. Press Back, then try Find song.":"The key box is empty.";render();}
-  else if(a==="rmkey"){OWN="";KEY=SHARED_KEY;try{localStorage.removeItem("yk");}catch(e){}S.msg="Key removed.";render();}
+  else if(a==="savekey"){return;OWN=$("ki").value.trim();KEY=OWN||SHARED_KEY;try{if(OWN)localStorage.setItem("yk",OWN);else localStorage.removeItem("yk");}catch(e){}S.msg=OWN?"Saved. Press Back, then try Find song.":"The key box is empty.";render();}
+  else if(a==="rmkey"){return;OWN="";KEY=SHARED_KEY;try{localStorage.removeItem("yk");}catch(e){}S.msg="Key removed.";render();}
 });
 $("main").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="ai")find();});
 
@@ -522,7 +522,7 @@ $("bMute").onclick=()=>{S.muted=!S.muted;showVol();};
 $("bPause").onclick=()=>{if(S.now){S.paused=!S.paused;if(second())post({t:S.paused?"pause":"play"});else if(yp&&yp.pauseVideo&&curId){if(S.paused)yp.pauseVideo();else yp.playVideo();}render();}};
 $("bNext").onclick=playNext;
 $("bBack").onclick=back;
-$("bSet").onclick=()=>{if(S.view!=="setup")go("setup");render();};
+$("bSet").onclick=null;
 
 // ---------- Fullscreen: seluruh app, atau kotak video sahaja ----------
 const fsOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
