@@ -194,7 +194,7 @@ const wait=()=>new Promise(r=>setTimeout(r,250));
 // ---------- YouTube API key (disimpan dalam pelayar ini sahaja) ----------
 // Optional shared key for everyone who opens this page (paste between the quotes).
 // Restrict it in Google Cloud to your site address. People can still add their own key with the gear button.
-const SHARED_KEY="AIzaSyAppVaDYflYaW76JU_3MrbKlUUCOuRklcM";
+const SHARED_KEY="";
 let OWN="";// Locked: the API key cannot be changed from the app.
 let KEY=OWN||SHARED_KEY;
 const dec=s=>{const t=document.createElement("textarea");t.innerHTML=s;return t.value;};
@@ -216,6 +216,8 @@ function cachePut(k,items){
     localStorage.setItem(CK,JSON.stringify(c));
   }catch(x){}
 }
+// Ask YouTube for the best quality. YouTube may ignore this and choose by player size and connection speed.
+function hiQ(){try{if(yp&&yp.setPlaybackQuality){yp.setPlaybackQuality("highres");}}catch(e){}}
 async function yt(q,n){
   const ck=n+"|"+q.toLowerCase().trim(),hit=cacheGet(ck);
   if(hit)return hit;
@@ -268,7 +270,7 @@ function loadCat(l){
     AV[l]=!!CATS[l];return CATS[l];
   });
 }
-const verLabel=()=>{$("ver").textContent="v23"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
+const verLabel=()=>{$("ver").textContent="v24"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
 // After a catalog loads, only redraw screens that have no text box, so nothing the user typed is wiped.
 const soft=()=>{if(S.view==="home"||S.view==="langs")render();else verLabel();};
 let catReady=Promise.resolve();
@@ -384,9 +386,9 @@ function syncPlayer(){
   resume={id:"",at:0};
   if(!yp){
     curId=v.id;
-    const pv={autoplay:1,playsinline:1,rel:0,fs:0,start:Math.floor(rs)};
+    const pv={autoplay:1,playsinline:1,rel:0,fs:1,start:Math.floor(rs)};
     if(/^https?:$/.test(location.protocol))pv.origin=location.origin;
-    yp=new YT.Player("yt",{width:"100%",height:"100%",videoId:v.id,playerVars:pv,events:{onReady:()=>applyVol(),onStateChange:e=>{if(e.data===0){curId="";playNext();}},onError:e=>ytErr(e.data)}});
+    yp=new YT.Player("yt",{width:"100%",height:"100%",videoId:v.id,playerVars:pv,events:{onReady:()=>applyVol(),onStateChange:e=>{if(e.data===1)hiQ();if(e.data===0){curId="";playNext();}},onError:e=>ytErr(e.data)}});
     return;
   }
   if(curId!==v.id){curId=v.id;yp.loadVideoById({videoId:v.id,startSeconds:rs});}
