@@ -146,12 +146,21 @@ if(window.__D){(function(){
   const ch=window.BroadcastChannel?new BroadcastChannel("kq"):null;
   const post=m=>{if(ch)ch.postMessage(m);};
   const go=document.getElementById("dgo");
+  const MIR=/[?&]mirror=1(&|$)/.test(location.search);
+  let mv=null;
+  if(MIR){
+    mv=document.createElement("video");mv.autoplay=true;mv.playsInline=true;
+    mv.style.cssText="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000";
+    document.getElementById("dp").insertBefore(mv,go);
+    window.setStream=function(st){mv.srcObject=st;try{mv.play();}catch(e){}};
+  }
   let ready=false,p=null,want=null,cur="",vol=70,muted=false;
   const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
   go.onclick=()=>{
     const el=document.documentElement,rq=el.requestFullscreen||el.webkitRequestFullscreen;
     if(rq)Promise.resolve(rq.call(el)).catch(()=>{});
     go.classList.add("hide");
+    if(mv)try{mv.play();}catch(e){}
     if(p&&p.playVideo)try{p.playVideo();}catch(e){}
   };
   document.addEventListener("fullscreenchange",()=>{if(!fsEl())go.classList.remove("hide");});
@@ -170,7 +179,7 @@ if(window.__D){(function(){
     }else p.loadVideoById({videoId:w.id,startSeconds:w.at||0});
   }
   window.onYouTubeIframeAPIReady=()=>{ready=true;run();};
-  const s=document.createElement("script");s.src="https://www.youtube.com/iframe_api";document.head.appendChild(s);
+  if(!MIR){const s=document.createElement("script");s.src="https://www.youtube.com/iframe_api";document.head.appendChild(s);}
   setInterval(()=>{if(p&&p.getCurrentTime&&cur)try{post({t:"time",id:cur,s:p.getCurrentTime()});}catch(e){}},1000);
   if(ch)ch.onmessage=ev=>{
     const m=ev.data||{};
@@ -270,7 +279,7 @@ function loadCat(l){
     AV[l]=!!CATS[l];return CATS[l];
   });
 }
-const verLabel=()=>{$("ver").textContent="v24"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
+const verLabel=()=>{$("ver").textContent="v26"+(CAT?" \u00b7 "+langName(LANG)+" catalog "+CAT.v.length+" videos":"");};
 // After a catalog loads, only redraw screens that have no text box, so nothing the user typed is wiped.
 const soft=()=>{if(S.view==="home"||S.view==="langs")render();else verLabel();};
 let catReady=Promise.resolve();
@@ -417,7 +426,7 @@ function queueHtml(){
 function render(){
   verLabel();
   $("bSet").classList.toggle("on",!KEY&&!hasCat());
-  $("oL").textContent=OUT==="second"?(D.ready?"2nd screen":"2nd: wait"):"Main screen";$("bScr").classList.toggle("on",OUT==="second");
+  $("oL").textContent=OUT==="mirror"?"Mirror":(OUT==="second"?(D.ready?"2nd screen":"2nd: wait"):"Main screen");$("bScr").classList.toggle("on",OUT!=="main");
   $("plt").textContent=S.now?(S.paused?"\u23f8 ":"")+(second()?"[2nd screen] ":"")+"Now playing: "+S.now.title+" ("+S.now.channel+")":"Nothing playing.";
   $("next").textContent=S.q[0]?"Next: "+S.q[0].title:"Queue is empty";
   let h="";
@@ -572,6 +581,7 @@ const D={ready:false,time:0,id:""};let dw=null,dCur="",resume={id:"",at:0},SD=nu
 const ch=window.BroadcastChannel?new BroadcastChannel("kq"):null;
 const post=m=>{if(ch)ch.postMessage(m);};
 const second=()=>OUT==="second"&&D.ready;
+let MS=null;
 function toast(msg,label,fn,ms){
   const t=$("toast");t.textContent="";
   const s=document.createElement("span");s.textContent=msg;t.appendChild(s);
@@ -598,16 +608,41 @@ async function loadSD(ask){
   }catch(e){}
   return SD;
 }
-function openScreen(){
+function endMirror(){
+  if(MS){try{MS.getTracks().forEach(t=>t.stop());}catch(e){}MS=null;}
+  try{if(dw&&!dw.closed)dw.close();}catch(e){}
+  dw=null;D.ready=false;if(OUT==="mirror")OUT="main";
+}
+// Mirror: this screen plays the video. A copy of the video box is sent live to the second screen.
+async function startMirror(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getDisplayMedia){toast("This browser cannot share the screen. Use Chrome.");return;}
+  try{
+    const st=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:30},audio:{suppressLocalAudioPlayback:true,echoCancellation:false,noiseSuppression:false,autoGainControl:false},preferCurrentTab:true,selfBrowserSurface:"include",surfaceSwitching:"exclude"});
+    const vt=st.getVideoTracks()[0];let cropped=false;
+    try{if(window.CropTarget&&vt.cropTo){await vt.cropTo(await CropTarget.fromElement($("pl")));cropped=true;}}catch(e){}
+    MS=st;
+    vt.onended=()=>{endMirror();toast("Sharing stopped. Playing on this screen only.");render();};
+    if(dw&&!dw.closed&&dw.setStream)dw.setStream(st);
+    const hasA=st.getAudioTracks().length>0;
+    toast(cropped?(hasA?"Mirroring the video to the second screen.":"Mirroring, but no sound. Tick 'Also share tab audio' next time."):"Mirroring the whole tab. Choose 'This tab' to send only the video.",null,null,9000);
+  }catch(e){toast("Sharing was cancelled.","Try again",startMirror,10000);}
+}
+function openScreen(mir){
   if(dw&&!dw.closed){try{dw.focus();}catch(e){}return;}
   let L=screen.width+20,T=0,W=1280,H=720;
   const sc=(SD&&SD.screens.find(s=>s!==SD.currentScreen&&!s.isInternal))||(SD&&SD.screens.find(s=>s!==SD.currentScreen));
   if(sc){L=sc.availLeft;T=sc.availTop;W=sc.availWidth;H=sc.availHeight;}
-  dw=window.open(location.pathname+"?display=1","kq-display","popup=yes,left="+L+",top="+T+",width="+W+",height="+H);
+  dw=window.open(location.pathname+"?display=1"+(mir===true?"&mirror=1":""),"kq-display","popup=yes,left="+L+",top="+T+",width="+W+",height="+H);
   if(!dw)toast("The browser blocked the 2nd screen window. Allow pop-ups for this site.","Try again",openScreen,12000);
 }
 $("bScr").onclick=async()=>{
-  if(OUT==="second"){endSecond();setOut("main");toast("Playing on this screen.");render();return;}
+  if(OUT==="mirror"){endMirror();toast("Playing on this screen.");render();return;}
+  if(OUT==="second"){
+    endSecond();OUT="mirror";render();
+    if(screen.isExtended===false&&!(SD&&SD.screens.length>1)){toast("No second screen found yet. Connect the projector with HDMI and choose Extend (Windows key + P), then press the screen button again.",null,null,10000);OUT="main";render();return;}
+    if(!SD&&window.getScreenDetails)await loadSD(true);
+    openScreen(true);return;
+  }
   setOut("second");render();
   if(screen.isExtended===false&&!(SD&&SD.screens.length>1)){
     toast("No second screen found yet. Connect the projector with HDMI and choose Extend (Windows key + P). I will ask you when it is ready.",null,null,10000);
@@ -618,13 +653,16 @@ $("bScr").onclick=async()=>{
 };
 if(ch)ch.onmessage=ev=>{
   const m=ev.data||{};
-  if(m.t==="hello"){D.ready=true;dCur="";post({t:"vol",v:S.vol,m:S.muted});toast("Second screen connected. Click once on it to start fullscreen.");render();}
+  if(m.t==="hello"&&OUT==="mirror"){D.ready=true;toast("Second screen ready. Press Share, then choose This tab.","Share",startMirror,30000);render();}
+  else if(m.t==="hello"){D.ready=true;dCur="";post({t:"vol",v:S.vol,m:S.muted});toast("Second screen connected. Click once on it to start fullscreen.");render();}
   else if(m.t==="ended"){if(second()){dCur="";playNext();}}
   else if(m.t==="time"){D.time=m.s;D.id=m.id;}
   else if(m.t==="err"){if(second()){if(m.c===101||m.c===150){toast("This video can't be embedded. Skipping...");setTimeout(playNext,1200);}else toast("Second screen video error "+m.c);}}
+  else if(m.t==="closed"&&OUT==="mirror"){if(dw&&!dw.closed)return;endMirror();toast("Second screen closed. Playing here.");render();}
   else if(m.t==="closed"){if(D.ready){endSecond();toast("Second screen closed. Playing here.");render();}}
 };
-setInterval(()=>{if(dw&&dw.closed){const was=D.ready;endSecond();dw=null;if(was){toast("Second screen closed. Playing here.");render();}}},1500);
+setInterval(()=>{if(dw&&dw.closed&&OUT==="mirror"){endMirror();toast("Second screen closed. Playing here.");render();return;}
+if(dw&&dw.closed){const was=D.ready;endSecond();dw=null;if(was){toast("Second screen closed. Playing here.");render();}}},1500);
 let lastExt=screen.isExtended===true;
 function onScreens(){
   const ext=screen.isExtended===true;
