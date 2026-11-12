@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Karaoke Channel Finder</title>
+<style>
+:root{--bg:#07040f;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.14);--ink:#f3eefe;--sub:#a99cc8;--acc:#a78bfa;--acc2:#7c3aed}
+*{box-sizing:border-box}
+body{margin:0;padding:24px 16px 60px;background:radial-gradient(70% 40% at 10% 0%,#2a1060 0%,transparent 70%),var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.w{max-width:980px;margin:0 auto}
+h1{margin:0 0 4px;font-size:28px;color:var(--acc)}
+.sub{color:var(--sub);font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:16px 0;backdrop-filter:blur(14px)}
+button,select,input{font:inherit;color:var(--ink)}
+.btn{background:linear-gradient(180deg,#8b5cf6,var(--acc2));border:0;border-radius:12px;padding:10px 18px;cursor:pointer;font-weight:600}
+.btn.alt{background:rgba(255,255,255,.1);border:1px solid var(--line)}
+.btn:disabled{opacity:.45;cursor:default}
+input[type=password],input[type=text],select{background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+input[type=password]{width:min(420px,100%)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0}
+#log{font:13px/1.5 ui-monospace,Consolas,monospace;color:var(--sub);max-height:180px;overflow:auto;white-space:pre-wrap}
+.bar{height:8px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden;margin:10px 0}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8b5cf6,#22d3ee);transition:width .2s}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 6px;text-align:left;border-bottom:1px solid var(--line)}
+th{color:var(--sub);font-weight:500;position:sticky;top:0;background:#120a24}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+a{color:var(--acc)}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:9px;background:rgba(255,255,255,.1);color:var(--sub)}
+.tag.bad{background:rgba(244,63,94,.2);color:#fda4af}
+.wrap{overflow-x:auto;max-height:70vh}
+</style>
+</head>
+<body>
+<div class="w">
+<h1>Karaoke Channel Finder</h1>
+<div class="sub">Finds karaoke channels on YouTube (pick a language) and ranks them by real views. Run it once, pick the channels you like, then download the list.</div>
+
+<div class="card">
+  <div class="row"><b>1. YouTube API key</b> <span class="sub" id="ks"></span></div>
+  <div class="row"><input id="key" type="password" placeholder="AIza... (filled automatically if you saved it in the app)"><button class="btn alt" id="saveKey">Save</button></div>
+</div>
+
+<div class="card">
+  <div class="row"><b>2. Search</b></div>
+  <div class="row">
+    <label>Language
+      <select id="lang"><option value="ms">Malay</option><option value="en">English</option><option value="ko">Korean</option><option value="id">Indonesian</option><option value="ot">Others (Japanese, Chinese, Thai, Hindi...)</option></select>
+    </label>
+    <label>Number of searches
+      <select id="n"><option value="12">12 (quick test)</option><option value="30" selected>30 (recommended)</option><option value="45">45 (thorough)</option></select>
+    </label>
+    <button class="btn" id="go">Start</button>
+  </div>
+  <div class="row"><label style="flex:1">Own searches (optional, one per line). If filled, only these are searched. Example for nasyid: karaoke nasyid, karaoke Raihan, karaoke Hijjaz, karaoke selawat
+    <textarea id="own" rows="3" style="width:100%" placeholder="karaoke nasyid&#10;karaoke Raihan&#10;karaoke Hijjaz"></textarea></label></div>
+  <div class="sub">Each search uses 1 of your 100 free searches for the day. The rest of the calls cost almost nothing. Please keep this page open until it finishes.</div>
+  <div class="bar"><i id="pg"></i></div>
+  <div id="log"></div>
+</div>
+
+<div class="card" id="res" hidden>
+  <div class="row"><b>3. Pick channels</b> <span class="sub" id="sum"></span></div>
+  <div class="row"><label><input type="checkbox" id="skip" checked> Malay mode: untick channels from Indonesia and the Philippines</label></div>
+  <div class="wrap"><table><thead><tr><th></th><th>#</th><th>Channel</th><th>Country</th><th class="n">Subscribers</th><th class="n">Karaoke videos found</th><th class="n">Their total views</th></tr></thead><tbody id="tb"></tbody></table></div>
+  <div class="row" style="margin-top:12px"><button class="btn" id="dl">Download channels.json</button><button class="btn alt" id="cp">Copy JSON</button><span class="sub" id="dm"></span></div>
+</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let KEY="";try{KEY=localStorage.getItem("yk")||"";}catch(e){}
+$("key").value=KEY;
+function ks(){$("ks").textContent=KEY?"Key found.":"No key yet. Paste it below.";}
+ks();
+$("saveKey").onclick=()=>{KEY=$("key").value.trim();try{localStorage.setItem("yk",KEY);}catch(e){}ks();};
+
+// Search ideas for each language. The first N of the chosen language are used.
+const Q={
+ ms:["karaoke lagu Melayu","karaoke lagu Melayu 90an","karaoke lagu Melayu 80an","karaoke lagu Melayu 2000an","karaoke lagu Melayu 70an","karaoke lagu Melayu 60an",
+ "karaoke jiwang tanpa vokal","karaoke slow rock Malaysia","karaoke rock kapak","karaoke lagu raya","karaoke nasyid","karaoke P. Ramlee",
+ "karaoke Siti Nurhaliza","karaoke M. Nasir","karaoke Ziana Zain","karaoke Sheila Majid","karaoke Search Wings","karaoke Iklim Spring","karaoke Exist Hijau Daun","karaoke Ella Misha Omar",
+ "karaoke Faizal Tahir Hael Husaini","karaoke Jamal Abdillah Sudirman","karaoke Alleycats Kenny","karaoke Ning Baizura Francissca Peter","karaoke Anuar Zain Mawi","karaoke Yuna Dayang Nurfaizah",
+ "karaoke lagu Malaysia terbaru","karaoke lagu Melayu 2010an","karaoke lagu Melayu minus one","karaoke Melayu tanpa vokal lirik","karaoke ballad Melayu","karaoke lagu cinta Melayu",
+ "karaoke Zamani Rahim Maarof","karaoke Elite Zainal Abidin","karaoke Sofia Jane Hujan","karaoke Aizat Amdan Hafiz Suip","karaoke Dato Sri Vida Fauziah Latiff","karaoke Amy Search Kopratasa",
+ "karaoke Hujan Mawi Kamal Adli","karaoke Malaysia duet","karaoke lagu Melayu klasik"],
+ en:["karaoke songs with lyrics","karaoke pop hits","karaoke 80s hits","karaoke 90s hits","karaoke 2000s hits","karaoke 2010s hits","karaoke rock classics","karaoke country songs","karaoke love ballads","karaoke R&B hits",
+ "karaoke Taylor Swift","karaoke Ed Sheeran","karaoke Adele","karaoke Bruno Mars","karaoke Queen","karaoke The Beatles","karaoke Michael Jackson","karaoke Whitney Houston","karaoke Elvis Presley","karaoke Frank Sinatra",
+ "karaoke Mariah Carey","karaoke Ariana Grande","karaoke Coldplay","karaoke Eagles","karaoke ABBA","karaoke Backstreet Boys","karaoke Celine Dion","karaoke Billie Eilish","karaoke Dua Lipa","karaoke The Weeknd",
+ "karaoke Justin Bieber","karaoke Katy Perry","karaoke Maroon 5","karaoke Westlife Boyzone","karaoke Shania Twain","karaoke Lady Gaga","karaoke Rihanna","karaoke Sam Smith","karaoke Christmas songs","karaoke duets"],
+ ko:["\ub178\ub798\ubc29 K-POP","\ub178\ub798\ubc29 \ubc1c\ub77c\ub4dc","\ub178\ub798\ubc29 BTS","\ub178\ub798\ubc29 \uc544\uc774\uc720","\ub178\ub798\ubc29 \ube14\ub799\ud551\ud06c","\ub178\ub798\ubc29 90\ub144\ub300","\ub178\ub798\ubc29 2000\ub144\ub300","\ub178\ub798\ubc29 \ud2b8\ub85c\ud2b8","\ub178\ub798\ubc29 MR","karaoke kpop",
+ "\ub178\ub798\ubc29 \ub274\uc9c4\uc2a4","\ub178\ub798\ubc29 \uc5d0\uc2a4\ud30c","\ub178\ub798\ubc29 \uc784\uc601\uc6c5","\ub178\ub798\ubc29 \uc131\uc2dc\uacbd","\ub178\ub798\ubc29 \ubcbd\ub9c8\ud06c","\ub178\ub798\ubc29 \ud2b8\uc640\uc774\uc2a4","\ub178\ub798\ubc29 \uc544\uc774\ube0c","\ub178\ub798\ubc29 \ube45\ubc45","\ub178\ub798\ubc29 \uc2dc\ub0b4","\ub178\ub798\ubc29 \ub4dc\ub77c\ub9c8 OST",
+ "karaoke BTS","karaoke BLACKPINK","karaoke Korean ballad","karaoke Korean songs with lyrics","\ub178\ub798\ubc29 \uc778\uae30\uacf5","\ub178\ub798\ubc29 \uc2e0\uace1","\ub178\ub798\ubc29 \uc5ec\uc790 \ud0a4","\ub178\ub798\ubc29 \ub0a8\uc790 \ud0a4"],
+ id:["karaoke lagu Indonesia","karaoke lagu pop Indonesia 90an","karaoke dangdut","karaoke Peterpan Noah","karaoke Sheila on 7","karaoke Dewa 19","karaoke Raisa","karaoke Tulus","karaoke Rossa","karaoke Judika",
+ "karaoke Armada","karaoke Slank","karaoke Ungu","karaoke Cakra Khan","karaoke Afgan","karaoke Isyana","karaoke Mahalini","karaoke Hindia","karaoke campursari","karaoke lagu Jawa",
+ "karaoke lagu daerah","karaoke lagu religi","karaoke Via Vallen","karaoke Nella Kharisma","karaoke Ayu Ting Ting","karaoke Rhoma Irama","karaoke Pance Pondaag","karaoke lagu galau","karaoke lagu pop Indonesia terbaru","karaoke Kangen Band"],
+ ot:["\u30ab\u30e9\u30aa\u30b1 J-POP","\u30ab\u30e9\u30aa\u30b1 \u30a2\u30cb\u30e1","\u30ab\u30e9\u30aa\u30b1 \u6f14\u6b4c","\u5361\u62c9OK \u56fd\u8bed","\u5361\u62c9OK \u7ca4\u8bed","\u5361\u62c9OK \u5468\u6770\u4f26","karaoke mandarin songs","karaoke cantonese songs","karaoke japanese songs","karaoke anime songs",
+ "\u0e04\u0e32\u0e23\u0e32\u0e42\u0e2d\u0e40\u0e01\u0e30","karaoke thai songs","karaoke bollywood","karaoke hindi songs","karaoke tamil songs","karaoke arabic songs","karaoke tagalog OPM","karaoke latin spanish","karaoke vietnamese","karaoke french chanson",
+ "karaoke spanish pop","karaoke portuguese","karaoke german schlager","karaoke russian songs","karaoke turkish songs","karaoke punjabi songs","karaoke telugu songs","karaoke urdu songs","karaoke italian songs","karaoke khmer songs"]
+};
+const REG={ms:{regionCode:"MY",relevanceLanguage:"ms"},en:{regionCode:"US",relevanceLanguage:"en"},ko:{regionCode:"KR",relevanceLanguage:"ko"},id:{regionCode:"ID",relevanceLanguage:"id"},ot:{}};
+const KWD=/karaoke|karoke|minus ?one|tanpa vokal|no vocals?|instrumental|\ub178\ub798\ubc29|\ubc18\uc8fc|\bMR\b|\u30ab\u30e9\u30aa\u30b1|\u30aa\u30d5\u30dc\u30fc\u30ab\u30eb|\u5361\u62c9|\u4f34\u594f|\u0e04\u0e32\u0e23\u0e32\u0e42\u0e2d\u0e40\u0e01\u0e30/i;
+const NOT=new Set(["ID","PH"]);
+let CH=[];
+const log=t=>{const l=$("log");l.textContent+=t+"\n";l.scrollTop=l.scrollHeight;};
+const prog=p=>$("pg").style.width=Math.round(p*100)+"%";
+const num=x=>Number(x||0);
+const fmt=x=>x>=1e6?(x/1e6).toFixed(1)+"M":x>=1e3?Math.round(x/1e3)+"K":String(x);
+
+async function api(path,params){
+  const u=new URL("https://www.googleapis.com/youtube/v3/"+path);
+  Object.entries(Object.assign({},params,{key:KEY})).forEach(([k,v])=>u.searchParams.set(k,v));
+  const r=await fetch(u),j=await r.json();
+  if(!r.ok){const e=new Error((j.error&&j.error.message)||("HTTP "+r.status));e.reason=j.error&&j.error.errors&&j.error.errors[0]&&j.error.errors[0].reason;throw e;}
+  return j;
+}
+const chunk=(a,n)=>{const o=[];for(let i=0;i<a.length;i+=n)o.push(a.slice(i,i+n));return o;};
+
+$("go").onclick=async()=>{
+  KEY=$("key").value.trim();
+  if(!KEY){alert("Please paste your YouTube API key first.");return;}
+  try{localStorage.setItem("yk",KEY);}catch(e){}ks();
+  $("go").disabled=true;$("log").textContent="";$("res").hidden=true;prog(0);
+  const LG=$("lang").value;LGR=LG;const OWN=$("own").value.split("\n").map(x=>x.trim()).filter(Boolean).slice(0,45),QL=OWN.length?OWN:Q[LG];const N=OWN.length?OWN.length:Math.min(Number($("n").value),Q[LG].length),vids=new Map();let used=0;
+  try{
+    for(let i=0;i<N;i++){
+      const q=QL[i];
+      try{
+        const j=await api("search",Object.assign({part:"snippet",type:"video",maxResults:50,q:q,videoEmbeddable:"true"},REG[LG]));
+        used++;let add=0;
+        for(const x of j.items||[]){
+          const id=x.id&&x.id.videoId;if(!id||vids.has(id))continue;
+          if(!KWD.test(x.snippet.title))continue;
+          vids.set(id,{id:id,ch:x.snippet.channelId,chTitle:x.snippet.channelTitle,title:x.snippet.title});add++;
+        }
+        log("Search "+(i+1)+"/"+N+": "+q+"  (+"+add+" karaoke videos)");
+      }catch(e){
+        if(e.reason==="quotaExceeded"||e.reason==="dailyLimitExceeded"){log("Daily limit reached. Continuing with what was found so far.");break;}
+        throw e;
+      }
+      prog((i+1)/N*0.6);
+    }
+    if(!vids.size){log("Nothing found.");return;}
+    log("Reading view counts for "+vids.size+" videos...");
+    const ids=[...vids.keys()],batches=chunk(ids,50);
+    for(let b=0;b<batches.length;b++){
+      const j=await api("videos",{part:"statistics",id:batches[b].join(",")});
+      for(const x of j.items||[]){const v=vids.get(x.id);if(v)v.views=num(x.statistics&&x.statistics.viewCount);}
+      prog(0.6+(b+1)/batches.length*0.25);
+    }
+    const by=new Map();
+    for(const v of vids.values()){
+      const c=by.get(v.ch)||{id:v.ch,title:v.chTitle,n:0,views:0};
+      c.n++;c.views+=num(v.views);by.set(v.ch,c);
+    }
+    let list=[...by.values()].sort((a,b)=>b.views-a.views).slice(0,60);
+    log("Reading channel details for "+list.length+" channels...");
+    const info=new Map();
+    for(const bt of chunk(list.map(c=>c.id),50)){
+      const j=await api("channels",{part:"snippet,statistics,contentDetails",id:bt.join(",")});
+      for(const x of j.items||[])info.set(x.id,x);
+    }
+    CH=list.map(c=>{
+      const x=info.get(c.id)||{};
+      return {id:c.id,title:(x.snippet&&x.snippet.title)||c.title,country:(x.snippet&&x.snippet.country)||"",
+        subs:x.statistics&&!x.statistics.hiddenSubscriberCount?num(x.statistics.subscriberCount):0,
+        uploads:(x.contentDetails&&x.contentDetails.relatedPlaylists&&x.contentDetails.relatedPlaylists.uploads)||"",
+        karaokeVideos:c.n,views:c.views};
+    });
+    prog(1);log("Done. Used "+used+" searches.");
+    render(true);
+  }catch(e){log("Error: "+e.message);}
+  finally{$("go").disabled=false;}
+};
+
+function render(reset){
+  $("res").hidden=false;
+  const skip=$("skip").checked&&LGR==="ms";
+  $("tb").innerHTML=CH.map((c,i)=>{
+    if(reset)c.on=i<30&&!(skip&&NOT.has(c.country));
+    return '<tr><td><input type="checkbox" data-i="'+i+'"'+(c.on?" checked":"")+'></td><td>'+(i+1)+'</td><td><a target="_blank" rel="noopener" href="https://www.youtube.com/channel/'+c.id+'">'+esc(c.title)+'</a></td><td>'+(c.country?'<span class="tag'+(NOT.has(c.country)?" bad":"")+'">'+c.country+'</span>':'<span class="sub">?</span>')+'</td><td class="n">'+(c.subs?fmt(c.subs):"-")+'</td><td class="n">'+c.karaokeVideos+'</td><td class="n">'+fmt(c.views)+'</td></tr>';
+  }).join("");
+  count();
+}
+const esc=s=>String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+function count(){const n=CH.filter(c=>c.on).length;$("sum").textContent=n+" selected of "+CH.length;}
+$("tb").addEventListener("change",e=>{const i=e.target.dataset.i;if(i!=null){CH[i].on=e.target.checked;count();}});
+$("skip").onchange=()=>{CH.forEach(c=>{if(NOT.has(c.country))c.on=!$("skip").checked&&c.on;});render(false);};
+let LGR="ms";
+function out(){return JSON.stringify({generated:new Date().toISOString().slice(0,10),channels:CH.filter(c=>c.on).map(c=>({id:c.id,title:c.title,uploads:c.uploads,subs:c.subs,country:c.country,lang:LGR}))},null,1);}
+$("dl").onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([out()],{type:"application/json"}));a.download="channels.json";a.click();$("dm").textContent="Downloaded.";};
+$("cp").onclick=async()=>{try{await navigator.clipboard.writeText(out());$("dm").textContent="Copied.";}catch(e){$("dm").textContent="Copy failed. Use Download instead.";}};
+</script>
+</body>
+</html>
